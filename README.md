@@ -45,6 +45,10 @@ ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 
 
 当前提交已通过 Java 主机回归测试、Android API 源码编译和静态配置检查；**尚未在真实 Android 设备上构建、安装或运行预编译后端**。请在受控设备上完成自己的发布前验证，不要把它当作已完成运行时安全认证。
 
+## Responsible use
+
+ARTEX Android is maintained by NightFall Technologies for legitimate security research, assessment, and administration. It is provided as-is and users operate it at their own discretion and responsibility. Use it only on systems, applications, accounts, and networks you own or have explicit permission to assess. NightFall Technologies does not guarantee fitness for a particular purpose and does not accept responsibility for unauthorized or unlawful use.
+
 ## 装
 
 目前请从本仓库源码构建自己的已签名 APK，具体步骤在 [构建指南](docs/BUILD.md)。发布者提供经过设备验证的 APK 后，才应在本仓库的 Releases 页面下载。
