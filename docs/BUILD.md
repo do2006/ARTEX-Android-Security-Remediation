@@ -31,7 +31,7 @@ ANDROID_SDK=/opt/android-sdk sh scripts/build_apk.sh dist/ARTEX.apk
 4. 从面板下载一个所需工具，确认 SHA-256 校验成功；不要执行来源不明的手动导入二进制。
 5. 记录 APK 的 SHA-256、签名证书指纹和已测试的设备/Android 版本到 Release 说明。
 
-预编译的后端和 PostgreSQL 资产没有可用的可复现来源证明。每个发布者都必须自行评估这些资产，并且不得把源码编译或签名成功表述为完整运行时安全认证。
+后端已有一次来自固定上游提交的 Android arm64 重建记录，见 [REPRODUCIBLE_INPUTS.md](REPRODUCIBLE_INPUTS.md)。PostgreSQL 资产仍没有完整、可复现的依赖来源证明。每个发布者都必须自行评估这些资产，并且不得把源码编译或签名成功表述为完整运行时安全认证。
 
 ---
 
@@ -39,7 +39,7 @@ ANDROID_SDK=/opt/android-sdk sh scripts/build_apk.sh dist/ARTEX.apk
 
 | 依赖 | 版本 | 用途 |
 |---|---|---|
-| Android SDK | `build-tools/34.0.0` + `platforms/android-34` | 打包签名，默认 `/opt/android-sdk` |
+| Android SDK | `build-tools/36.0.0` + `platforms/android-34` | 打包签名，默认 `/opt/android-sdk` |
 | JDK | 11+ | 编译 Java 壳 |
 | Python 3 | 任意 | 组装 zip |
 | aapt / zipalign / apksigner | 随 build-tools | 由 SDK 提供 |
@@ -186,7 +186,7 @@ android:versionName="1.9.3-green"
 `ArtExService.ASSETS_VERSION` 要递增，否则老机器上不会重新释放：
 
 ```java
-private static final int ASSETS_VERSION = 7;
+private static final int ASSETS_VERSION = 8;
 ```
 
 ---
@@ -195,7 +195,7 @@ private static final int ASSETS_VERSION = 7;
 
 **`找不到 Android SDK`**
 
-设 `ANDROID_SDK=`，或确认 `/opt/android-sdk/build-tools/34.0.0` 存在。
+设 `ANDROID_SDK=`，或确认 `/opt/android-sdk/build-tools/36.0.0` 存在。
 
 **`找不到签名密钥`**
 

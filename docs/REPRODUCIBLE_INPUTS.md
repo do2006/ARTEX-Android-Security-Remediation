@@ -8,8 +8,8 @@ The references below were checked on 2026-11-23. Before a release, resolve each 
 
 | Component | Authoritative source | Candidate pinned reference | Status |
 |---|---|---|---|
-| ARTEX backend and Web UI | <https://github.com/RuoJi6/ARTEX> | `v0.3.31` / `253a8eeac3b278cd4ff383674a31a0edcc34e143` | Source found; Android build not yet reproduced |
-| PostgreSQL for Android | <https://github.com/termux/termux-packages/tree/d85d18f456d732d26d8b87d826155c2ced0342e8/packages/postgresql> | Termux packages commit `d85d18f456d732d26d8b87d826155c2ced0342e8`; package recipe declares PostgreSQL `18.6` and its source hash | Source recipe found; complete dependency closure still required |
+| ARTEX backend and Web UI | <https://github.com/RuoJi6/ARTEX> | `v0.3.31` / `253a8eeac3b278cd4ff383674a31a0edcc34e143` | Rebuilt for Android arm64 on 2026-11-23; runtime/device validation remains required |
+| PostgreSQL for Android | <https://github.com/termux/termux-packages/tree/d85d18f456d732d26d8b87d826155c2ced0342e8/packages/postgresql> | Termux packages commit `d85d18f456d732d26d8b87d826155c2ced0342e8`; package recipe declares PostgreSQL `18.7` and its source hash | Source recipe found; complete dependency closure still required |
 | Impacket | <https://github.com/fortra/impacket> | release `impacket_0_13_1` | Source found; Android Python compatibility not yet verified |
 | NetExec (`nxc`) | <https://github.com/Pennyw0rth/NetExec> | release `v1.5.1` | Source found; dependency closure and Android compatibility not yet verified |
 | pypykatz | <https://github.com/skelsec/pypykatz> | release `0.6.13` | Source found; dependency closure and Android compatibility not yet verified |
@@ -17,9 +17,28 @@ The references below were checked on 2026-11-23. Before a release, resolve each 
 
 ## Current state
 
+### Backend build evidence
+
+`assets/backend/artex` was rebuilt from the pinned ARTEX source above in an isolated Docker build on 2026-11-23. The frontend was built with the committed `web/package-lock.json`, statically exported, and embedded into the backend using the `embedui` build tag. The output was not executed.
+
+| Item | Recorded value |
+|---|---|
+| Node builder | `node:22-bookworm@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb` |
+| Go builder | `golang:1.26.10-bookworm@sha256:5de7c99eb78ca5e515a4c340235d0955ec5964a5071c492c15503d7c267da473` |
+| Frontend command | `npm ci --ignore-scripts --no-audit --fund=false && npm run build:static` |
+| Backend command | `GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -tags embedui -buildmode=pie -o artex ./cmd/artex` |
+| Output | ELF64 little-endian, type `ET_DYN`, machine `AArch64`; 56,687,680 bytes |
+| SHA-256 | `8a5bd5d36500f0a1e3caf3f0e01eb917176fa854d8455120f1b4742e68efdb33` |
+
+This is build provenance, not a claim that the backend is security-reviewed or runtime-certified. The APK has not yet been installed or exercised on a device/emulator.
+
+### APK assembly evidence
+
+On 2026-11-23, the Android wrapper was compiled and assembled with Android SDK platform `android-34` and build-tools `36.0.0`. Build-tools `34.0.0` was rejected for release use because its D8 compiler crashed internally on the project's anonymous callback classes; `36.0.0` produced `classes.dex` successfully. The resulting test-only APK was aligned and passed `apksigner` v2/v3 verification. It uses a disposable local certificate and **must not be published or presented as a NightFall release**. A permanent release keystore and an arm64 device test are still required.
+
 `assets/python/stdlib/python3.14/site-packages` contains `pip` only. The app intentionally disables its former automatic network `pip install` path because unpinned packages are not a trustworthy execution input.
 
-The current PostgreSQL preparation script copies a pre-existing Termux installation and patches paths. It does not establish the provenance of the Termux package, its dependency packages, or their transitive native libraries. The current backend preparation script can compile ARTEX from a specified checkout, but it does not lock that checkout, Node dependencies, Go toolchain, or generated Web UI inputs.
+The current PostgreSQL preparation script copies a pre-existing Termux installation and patches paths. It does not establish the provenance of the Termux package, its dependency packages, or their transitive native libraries.
 
 ## Required release inputs
 

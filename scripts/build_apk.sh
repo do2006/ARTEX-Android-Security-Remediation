@@ -15,7 +15,7 @@ set -e
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SDK="${ANDROID_SDK:-/opt/android-sdk}"
-BT="$SDK/build-tools/34.0.0"
+BT="$SDK/build-tools/36.0.0"
 PLATFORM="$SDK/platforms/android-34/android.jar"
 WORK="${WORK:-/tmp/artex-build}"
 OUT="${1:-$REPO/dist/ARTEX-Mobile.apk}"
@@ -112,13 +112,17 @@ os.replace(fixed, full)
 print('  修复 %d 个图标为 RGBA' % n)
 PY
 
-echo "[4/5] 签名"
+echo "[4/6] zipalign"
+"$BT/zipalign" -p -f 4 "$WORK/full.apk" "$WORK/full-aligned.apk"
+
+echo "[5/6] 签名"
 export ARTEX_KS_PASS ARTEX_KEY_PASS
 java -jar "$BT/lib/apksigner.jar" sign \
   --ks "$KEYSTORE" --ks-pass "env:ARTEX_KS_PASS" --key-pass "env:ARTEX_KEY_PASS" \
-  --min-sdk-version 24 --out "$OUT" "$WORK/full.apk"
+  --min-sdk-version 24 --out "$OUT" "$WORK/full-aligned.apk"
 
-echo "[5/5] 验证"
+echo "[6/6] 验证"
+"$BT/zipalign" -c -v 4 "$OUT"
 java -jar "$BT/lib/apksigner.jar" verify --min-sdk-version 24 "$OUT" | head -2
 ls -la "$OUT"
 echo "完成：$OUT"

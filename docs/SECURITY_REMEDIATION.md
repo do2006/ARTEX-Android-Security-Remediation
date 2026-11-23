@@ -1,6 +1,6 @@
 # Security remediation status
 
-This branch changes the Android wrapper only. The reviewed backend remains a prebuilt binary, so its TLS, authentication, authorization, archive handling, and command-execution behavior cannot be verified or corrected here.
+This branch hardens the Android wrapper. `assets/backend/artex` was rebuilt from the pinned upstream ARTEX source on 2026-11-23, but the backend's TLS, authentication, authorization, archive handling, and command-execution behavior have not been security-reviewed or runtime-certified.
 
 ## Safe defaults now enforced
 
@@ -15,7 +15,7 @@ This branch changes the Android wrapper only. The reviewed backend remains a pre
 
 ## Follow-up required
 
-- Provide backend source plus reproducible, signed provenance for `assets/backend/artex` and PostgreSQL assets before enabling LAN access, TLS, or server-side authentication changes.
+- Complete signed provenance for the rebuilt backend and reproducible, signed provenance for PostgreSQL assets before enabling LAN access, TLS, or server-side authentication changes.
 - Backups remain in internal app-private storage and are not encrypted or signed. The v2 manifest detects accidental tampering/corruption but is not a trust signature. Implement authenticated encryption with a user-selected passphrase and recovery UX before adding any export flow.
 - Legacy backups with the prior unverified manifest format are intentionally rejected; users must retain the source device and create a fresh v2 backup before migration.
 - Pin and verify all build inputs, including Termux packages and the Android signing environment. `env:` keeps signing passwords out of process arguments, but environment-based secrets still require a controlled build host and must never be logged.

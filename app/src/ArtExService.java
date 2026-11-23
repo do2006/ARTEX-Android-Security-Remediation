@@ -20,7 +20,7 @@ public class ArtExService {
     private static final int PORT = 8787;
     private static final int PG_PORT = 5432;
     // 每次改动 assets 内容（二进制/库/数据）就 +1，触发强制覆盖重新释放
-    private static final int ASSETS_VERSION = 7;
+    private static final int ASSETS_VERSION = 8;
 
     public interface StatusListener {
         void onStatus(String msg);
