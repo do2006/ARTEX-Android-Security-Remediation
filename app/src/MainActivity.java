@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
-        ws.setAllowFileAccess(true);
+        ws.setAllowFileAccess(false);
         ws.setCacheMode(WebSettings.LOAD_DEFAULT);
         // 让前端主题跟随系统深浅色。前端把主题存在 cookie theme_mode 里
         // （light / dark / system，默认 light），theme-boot 首屏渲染前读它；
@@ -126,6 +126,17 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (!request.isForMainFrame()) return false;
+                android.net.Uri uri = request.getUrl();
+                if ("http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost())
+                        && uri.getPort() == PORT) return false;
+                Intent external = new Intent(Intent.ACTION_VIEW, uri);
+                startActivity(external);
+                return true;
+            }
+
             @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
                 Log.e(TAG, "资源错误 " + req.getUrl() + ": " + err.getDescription());
@@ -282,11 +293,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReady() {
-                String ip = getLocalIp();
-                String lan = ip != null ? "http://" + ip + ":" + PORT : null;
                 runOnUiThread(() -> {
                     console.complete();
-                    console.log("[LAN] " + (lan != null ? lan : "(未获取到局域网 IP)"));
+                    console.log("[LOCAL] 服务仅监听本机。");
                     // 通知只留两行：标题 ARTEX，正文 服务运行中。
                     // 访问地址仍打在控制台日志里，需要时能查到。
                     Notifier.show(MainActivity.this, "ARTEX", "服务运行中");

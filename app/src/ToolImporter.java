@@ -157,6 +157,7 @@ final class ToolImporter {
 
     /** 把临时文件收成正式名。同名的旧版本直接换掉，避免留下两份 */
     File accept(File pending, String name) {
+        if (!SecurityPolicy.isSafeFileName(name)) return null;
         File dst = new File(destDir, name);
         if (dst.exists() && !dst.delete()) return null;
         if (pending.renameTo(dst)) return dst;
@@ -185,7 +186,7 @@ final class ToolImporter {
     }
 
     /**
-     * 收下一个刚从网络下好的文件：静态校验 → chmod → 试跑 → 改名。
+     * 收下一个刚从网络下好的文件：静态校验 → chmod → 改名。
      *
      * 下载路径不能只跑 probe：一个 x86 或 glibc 动态的二进制被 exec 时
      * 只会报 "无法执行"，用户看到的是「试跑未通过」，会往工具本身想，
@@ -199,18 +200,17 @@ final class ToolImporter {
             file.delete();
             return Install.fail(v.reason);
         }
-        file.setExecutable(true, false);
-        Probe pr = probe(file);
-        if (!pr.usable) {
+        if (!SecurityPolicy.isSafeFileName(name)) {
             file.delete();
-            return Install.fail("试跑未通过：" + pr.detail);
+            return Install.fail("工具名称不安全");
         }
+        file.setExecutable(true, false);
         File dst = accept(file, name);
         if (dst == null) {
             file.delete();
             return Install.fail("重命名失败");
         }
-        return Install.ok(dst, pr.version);
+        return Install.ok(dst, "");
     }
 
     static final class Install {

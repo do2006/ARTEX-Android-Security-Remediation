@@ -7,6 +7,11 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.security.MessageDigest;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -39,17 +44,20 @@ public class RestoreManager {
         File pgOld = new File(filesDir, "pgdata.old");
         File artex = new File(filesDir, "artex");
         File artexOld = new File(filesDir, "artex.old");
-        boolean moved = false;
+        boolean pgMoved = false;
+        boolean artexMoved = false;
         try {
             cb.onProgress("停止服务…");
             if (svc != null) svc.stop();
             waitPgExit(cb);
 
             cb.onProgress("备份现有数据（以便失败回滚）…");
-            deleteRecursive(pgOld);
-            deleteRecursive(artexOld);
-            if (pg.exists()) moved |= pg.renameTo(pgOld);
-            if (artex.exists()) moved |= artex.renameTo(artexOld);
+            if (!RestoreFiles.deleteRecursive(pgOld) || !RestoreFiles.deleteRecursive(artexOld))
+                throw new Exception("无法清理旧恢复备份，已取消恢复");
+            if (pg.exists() && !(pgMoved = pg.renameTo(pgOld)))
+                throw new Exception("无法保留现有数据库，已取消恢复");
+            if (artex.exists() && !(artexMoved = artex.renameTo(artexOld)))
+                throw new Exception("无法保留现有 ARTEX 数据，已取消恢复");
 
             cb.onProgress("解压备份…");
             int n = unzip(zipUri, filesDir, cb);
@@ -78,25 +86,20 @@ public class RestoreManager {
             // 只保留最近一份：每份 pgdata.old 都几十 MB，多次恢复会把空间吃满。
             // 先清掉更早的，再改名。
             pruneOldBackups();
-            if (pgOld.exists()) pgOld.renameTo(new File(filesDir, "pgdata.old-" + stamp));
-            if (artexOld.exists()) artexOld.renameTo(new File(filesDir, "artex.old-" + stamp));
+            if (pgOld.exists() && !pgOld.renameTo(new File(filesDir, "pgdata.old-" + stamp)))
+                throw new Exception("恢复完成但无法保留旧数据库副本");
+            if (artexOld.exists() && !artexOld.renameTo(new File(filesDir, "artex.old-" + stamp)))
+                throw new Exception("恢复完成但无法保留旧 ARTEX 数据副本");
 
             cb.onProgress("完成，共还原 " + n + " 个文件");
             cb.onDone();
         } catch (Throwable t) {
             Log.e("ARTEX", "恢复失败", t);
             // 回滚：删掉解压出来的一半，恢复原数据
-            try {
-                if (moved) {
-                    deleteRecursive(pg);
-                    deleteRecursive(artex);
-                    if (pgOld.exists()) pgOld.renameTo(pg);
-                    if (artexOld.exists()) artexOld.renameTo(artex);
-                }
-            } catch (Throwable t2) {
-                Log.e("ARTEX", "回滚也失败了", t2);
-            }
-            cb.onError(t.getMessage() == null ? t.toString() : t.getMessage());
+            String rollbackFailures = RestoreFiles.rollback(pg, pgOld, pgMoved, artex, artexOld, artexMoved);
+            if (!rollbackFailures.isEmpty()) Log.e("ARTEX", "回滚失败: " + rollbackFailures);
+            String message = t.getMessage() == null ? t.toString() : t.getMessage();
+            cb.onError(rollbackFailures.isEmpty() ? message : message + "；回滚失败：" + rollbackFailures);
         }
     }
 
@@ -108,7 +111,7 @@ public class RestoreManager {
             for (File f : all) {
                 String n = f.getName();
                 if (n.startsWith("pgdata.old-") || n.startsWith("artex.old-")) {
-                    deleteRecursive(f);
+                    RestoreFiles.deleteRecursive(f);
                 }
             }
         } catch (Throwable t) {
@@ -116,7 +119,7 @@ public class RestoreManager {
         }
     }
 
-    private void waitPgExit(Callback cb) {
+    private void waitPgExit(Callback cb) throws Exception {
         File pid = new File(filesDir, "pgdata/postmaster.pid");
         for (int i = 0; i < 40; i++) {
             if (!pid.exists()) return;
@@ -124,59 +127,89 @@ public class RestoreManager {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                return;
+                throw new Exception("等待数据库退出时被中断");
             }
         }
+        throw new Exception("数据库未在超时内退出，已取消恢复以保护数据一致性");
     }
 
     private int unzip(Uri uri, File destRoot, Callback cb) throws Exception {
         InputStream raw = ctx.getContentResolver().openInputStream(uri);
         if (raw == null) throw new Exception("无法读取所选文件");
-        int count = 0, skipped = 0;
+        int count = 0;
+        RestorePolicy.Limits limits = new RestorePolicy.Limits();
+        Set<String> seen = new HashSet<>();
         ZipInputStream zin = new ZipInputStream(raw);
         try {
-            ZipEntry e;
+            ZipEntry e = zin.getNextEntry();
+            if (e == null || e.isDirectory() || !"manifest.json".equals(e.getName())) {
+                throw new Exception("备份必须以 manifest.json 开始");
+            }
+            limits.beginEntry();
+            BackupManifest manifest = BackupManifest.parse(readManifest(zin));
+            Map<String, String> expected = manifest.copyHashes();
+            seen.add("manifest.json");
+            zin.closeEntry();
             byte[] buf = new byte[65536];
             while ((e = zin.getNextEntry()) != null) {
                 String name = e.getName();
-                // 防 zip slip：纯字符串判断就行。
-                // 原先用 getCanonicalPath() 比较，但它会解析符号链接
-                // （Android 上 /data/user/0 是指向 /data/data 的软链），
-                // 两边解析结果不一致时会把所有文件默默跳过且不报错。
-                if (name.startsWith("/") || name.contains("..")) {
-                    skipped++;
-                    zin.closeEntry();
-                    continue;
+                if (!RestorePolicy.isAllowedEntry(name) || !seen.add(name)) {
+                    throw new Exception("备份包含不允许或重复的路径：" + name);
                 }
+                limits.beginEntry();
                 File out = new File(destRoot, name);
                 if (e.isDirectory()) {
-                    out.mkdirs();
+                    if (!out.mkdirs() && !out.isDirectory()) throw new Exception("无法创建目录：" + name);
                 } else {
-                    out.getParentFile().mkdirs();
+                    if (!RestorePolicy.isRestorableFile(name)) throw new Exception("备份文件路径无效：" + name);
+                    String expectedHash = expected.remove(name);
+                    if (expectedHash == null) throw new Exception("备份文件未在 manifest 中声明：" + name);
+                    if (!out.getParentFile().mkdirs() && !out.getParentFile().isDirectory())
+                        throw new Exception("无法创建目录：" + name);
+                    long entryBytes = 0;
+                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
                     try (FileOutputStream fo = new FileOutputStream(out)) {
                         int r;
-                        while ((r = zin.read(buf)) > 0) fo.write(buf, 0, r);
+                        while ((r = zin.read(buf)) > 0) {
+                            entryBytes += r;
+                            limits.addBytes(r, entryBytes);
+                            digest.update(buf, 0, r);
+                            fo.write(buf, 0, r);
+                        }
+                    }
+                    if (!expectedHash.equalsIgnoreCase(hex(digest.digest()))) {
+                        throw new Exception("备份文件校验失败：" + name);
                     }
                     count++;
                     if (count % 200 == 0) cb.onProgress("已还原 " + count + " 个文件…");
                 }
                 zin.closeEntry();
             }
+            if (!expected.isEmpty()) throw new Exception("备份缺少 manifest 声明的文件");
         } finally {
             try {
                 zin.close();
             } catch (Throwable ignored) {}
         }
-        if (skipped > 0) cb.onProgress("（跳过 " + skipped + " 条异常路径）");
         return count;
     }
 
-    private void deleteRecursive(File f) {
-        if (f == null || !f.exists()) return;
-        if (f.isDirectory()) {
-            File[] cs = f.listFiles();
-            if (cs != null) for (File c : cs) deleteRecursive(c);
+    private byte[] readManifest(ZipInputStream zin) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = zin.read(buffer)) > 0) {
+            if (out.size() + read > BackupManifest.MAX_MANIFEST_BYTES) {
+                throw new Exception("备份 manifest 超过限制");
+            }
+            out.write(buffer, 0, read);
         }
-        f.delete();
+        return out.toByteArray();
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder out = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) out.append(String.format(java.util.Locale.US, "%02x", value));
+        return out.toString();
     }
 }

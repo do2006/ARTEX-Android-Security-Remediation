@@ -29,8 +29,7 @@ import java.util.List;
  */
 final class SkillCatalog {
 
-    static final String CATALOG_URL =
-            "https://raw.githubusercontent.com/Srysfu/artex-mobile-tools/main/skills.json";
+    static final String CATALOG_URL = SecurityPolicy.catalogUrl("skills");
 
     private static final int CONNECT_TIMEOUT_MS = 15000;
     private static final int READ_TIMEOUT_MS = 60000;
@@ -70,12 +69,12 @@ final class SkillCatalog {
     void fetch(FetchCallback cb) {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(CATALOG_URL).openConnection();
-            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            c.setReadTimeout(READ_TIMEOUT_MS);
-            c.setInstanceFollowRedirects(true);
+            if (!SecurityPolicy.isAllowedCatalogUrl(CATALOG_URL, "skills")) {
+                throw new Exception("内置技能清单地址无效");
+            }
+            c = openCatalog(CATALOG_URL);
             int code = c.getResponseCode();
-            if (code != 200) {
+            if (code != 200 || !SecurityPolicy.isAllowedCatalogUrl(c.getURL().toString(), "skills")) {
                 cb.onError("清单请求失败：HTTP " + code);
                 return;
             }
@@ -112,7 +111,8 @@ final class SkillCatalog {
             e.size = o.optLong("size");
             e.sha256 = o.optString("sha256");
             e.url = o.optString("url");
-            if (e.name.isEmpty() || e.url.isEmpty()) continue;
+            if (!SecurityPolicy.isSafeFileName(e.name) || !SecurityPolicy.isSha256(e.sha256)
+                    || !SecurityPolicy.isAllowedSkillReleaseUrl(e.url, e.name)) continue;
             out.add(e);
         }
         return out;
@@ -128,10 +128,11 @@ final class SkillCatalog {
             cb.onProgress("下载 " + e.name + "…");
             tmp = new File(ctx.getCacheDir(), ".skill-" + e.name + ".zip");
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            HttpURLConnection c = (HttpURLConnection) new URL(e.url).openConnection();
-            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            c.setReadTimeout(READ_TIMEOUT_MS);
-            c.setInstanceFollowRedirects(true);
+            if (!SecurityPolicy.isAllowedSkillReleaseUrl(e.url, e.name)) {
+                cb.onError("技能下载地址不受信任");
+                return;
+            }
+            HttpURLConnection c = openRelease(e.url);
             int code = c.getResponseCode();
             if (code != 200) {
                 cb.onError("下载失败：HTTP " + code);
@@ -153,8 +154,7 @@ final class SkillCatalog {
                 }
             }
             String actual = hex(md.digest());
-            if (e.sha256 != null && !e.sha256.isEmpty()
-                    && !e.sha256.equalsIgnoreCase(actual)) {
+            if (!SecurityPolicy.isSha256(e.sha256) || !e.sha256.equalsIgnoreCase(actual)) {
                 cb.onError("校验失败：sha256 不匹配");
                 return;
             }
@@ -280,5 +280,17 @@ final class SkillCatalog {
         StringBuilder sb = new StringBuilder(b.length * 2);
         for (byte x : b) sb.append(String.format(java.util.Locale.US, "%02x", x));
         return sb.toString();
+    }
+
+    private static HttpURLConnection openCatalog(String value) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(value).openConnection();
+        c.setInstanceFollowRedirects(false);
+        c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        c.setReadTimeout(READ_TIMEOUT_MS);
+        return c;
+    }
+
+    private static HttpURLConnection openRelease(String value) throws Exception {
+        return ToolCatalog.openRelease(value);
     }
 }

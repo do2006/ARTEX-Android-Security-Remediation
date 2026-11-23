@@ -12,9 +12,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -77,7 +80,7 @@ public class BackupManager {
     }
 
     /** 等 postmaster.pid 消失，确认 PG 已真正退出 */
-    private void waitPgExit(Callback cb) {
+    private void waitPgExit(Callback cb) throws Exception {
         File pid = new File(filesDir, "pgdata/postmaster.pid");
         for (int i = 0; i < 40; i++) {
             if (!pid.exists()) return;
@@ -85,10 +88,10 @@ public class BackupManager {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                return;
+                throw new Exception("等待数据库退出时被中断");
             }
         }
-        Log.w("ARTEX", "等待 PG 退出超时，仍继续打包");
+        throw new Exception("数据库未在超时内退出，已取消备份以保护数据一致性");
     }
 
     /** 输出流：API 29+ 走 MediaStore（免权限），旧版本写公共 Download 目录 */
@@ -96,52 +99,11 @@ public class BackupManager {
     private String lastWhere;
 
     /**
-     * 输出流。三级回退：
-     *  1) MediaStore → 下载/ARTEX 备份/（Android 10+ 免权限；但本包 targetSdk=27，
-     *     旧规则下仍可能需要 WRITE_EXTERNAL_STORAGE，所以必须能退）
-     *  2) 公共 Download 目录（Android 9-，或有权限时）
-     *  3) 应用私有外部目录 files/backup（一定写得进去，用户能从 MT 取出）
+     * 输出流只写应用私有目录。未实现用户持有的加密密钥前，不能把含数据库和
+     * 配置的备份默认写入公共 Downloads。
      */
     private OutputStream openOutput(String name) throws Exception {
-        // 1) MediaStore
-        if (Build.VERSION.SDK_INT >= 29) {
-            try {
-                ContentValues v = new ContentValues();
-                v.put(MediaStore.Downloads.DISPLAY_NAME, name);
-                v.put(MediaStore.Downloads.MIME_TYPE, "application/zip");
-                v.put(MediaStore.Downloads.RELATIVE_PATH,
-                        Environment.DIRECTORY_DOWNLOADS + "/ARTEX 备份");
-                Uri uri = ctx.getContentResolver()
-                        .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                if (uri != null) {
-                    OutputStream os = ctx.getContentResolver().openOutputStream(uri);
-                    if (os != null) {
-                        lastWhere = "下载/ARTEX 备份/" + name;
-                        return os;
-                    }
-                }
-                Log.w("ARTEX", "MediaStore 建文件失败，改用公共下载目录");
-            } catch (Throwable t) {
-                Log.w("ARTEX", "MediaStore 写入失败: " + t);
-            }
-        }
-
-        // 2) 公共 Download 目录
-        try {
-            File dir = new File(Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS), "ARTEX 备份");
-            if (!dir.exists() && !dir.mkdirs()) throw new Exception("mkdirs 失败");
-            File f = new File(dir, name);
-            OutputStream os = new FileOutputStream(f);
-            lastWhere = f.getAbsolutePath();
-            return os;
-        } catch (Throwable t) {
-            Log.w("ARTEX", "公共下载目录写入失败: " + t);
-        }
-
-        // 3) 应用私有外部目录（/sdcard/Android/data/<pkg>/files/backup）
-        File dir = ctx.getExternalFilesDir("backup");
-        if (dir == null) dir = new File(ctx.getFilesDir(), "backup");
+        File dir = new File(ctx.getFilesDir(), "backup");
         if (!dir.exists() && !dir.mkdirs()) throw new Exception("无法创建备份目录: " + dir);
         File f = new File(dir, name);
         lastWhere = f.getAbsolutePath();
@@ -155,17 +117,17 @@ public class BackupManager {
         files = 0;
         this.cb = cb;
 
-        // 清单
+        Map<String, String> hashes = new TreeMap<>();
+        collectHashes(new File(filesDir, "pgdata"), "pgdata", hashes);
+        collectFileHash(new File(filesDir, "artex/config.json"), "artex/config.json", hashes);
+        collectHashes(new File(filesDir, "artex/skills"), "artex/skills", hashes);
+        collectHashesSkip(new File(filesDir, "artex/data"), "artex/data",
+                lite ? "tasks" : null, hashes);
+
+        // v2 清单必须在数据前写入；恢复端据此验证每个文件。v1 旧备份明确不再支持，
+        // 因为它们没有逐文件完整性信息。
         zip.putNextEntry(new ZipEntry("manifest.json"));
-        String manifest = "{\n"
-                + "  \"app\": \"ARTEX Android\",\n"
-                + "  \"version\": \"" + appVersion() + "\",\n"
-                + "  \"created_at\": \"" + new Date().toString() + "\",\n"
-                + "  \"android_sdk\": " + Build.VERSION.SDK_INT + ",\n"
-                + "  \"contents\": [\"pgdata（数据库）\", \"artex/data（工作空间）\",\n"
-                + "                \"artex/config.json（配置）\", \"artex/skills（技能）\"]\n"
-                + "}\n";
-        zip.write(manifest.getBytes("UTF-8"));
+        zip.write(BackupManifest.create(hashes).toJson(appVersion()));
         zip.closeEntry();
 
         // 数据库 + 工作空间 + 配置
@@ -238,6 +200,45 @@ public class BackupManager {
         zip.closeEntry();
         if (++files % 200 == 0 && cb != null) cb.onProgress("已打包 " + files + " 个文件…");
         return n;
+    }
+
+    private void collectHashes(File dir, String prefix, Map<String, String> hashes) throws Exception {
+        if (!dir.exists()) return;
+        File[] children = dir.listFiles();
+        if (children == null) throw new Exception("无法读取备份目录: " + dir);
+        java.util.Arrays.sort(children, (left, right) -> left.getName().compareTo(right.getName()));
+        for (File child : children) {
+            String path = prefix + "/" + child.getName();
+            if (child.isDirectory()) collectHashes(child, path, hashes);
+            else collectFileHash(child, path, hashes);
+        }
+    }
+
+    private void collectHashesSkip(File dir, String prefix, String skipName, Map<String, String> hashes)
+            throws Exception {
+        if (!dir.exists()) return;
+        File[] children = dir.listFiles();
+        if (children == null) throw new Exception("无法读取备份目录: " + dir);
+        java.util.Arrays.sort(children, (left, right) -> left.getName().compareTo(right.getName()));
+        for (File child : children) {
+            if (skipName != null && skipName.equals(child.getName())) continue;
+            String path = prefix + "/" + child.getName();
+            if (child.isDirectory()) collectHashes(child, path, hashes);
+            else collectFileHash(child, path, hashes);
+        }
+    }
+
+    private void collectFileHash(File file, String path, Map<String, String> hashes) throws Exception {
+        if (!file.isFile()) return;
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (FileInputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) > 0) digest.update(buffer, 0, read);
+        }
+        StringBuilder hex = new StringBuilder(64);
+        for (byte value : digest.digest()) hex.append(String.format(Locale.US, "%02x", value));
+        hashes.put(path, hex.toString());
     }
 
     /** 从系统读应用版本号 */

@@ -21,8 +21,8 @@ WORK="${WORK:-/tmp/artex-build}"
 OUT="${1:-$REPO/dist/ARTEX-Mobile.apk}"
 ASSETS="$REPO/assets"
 KEYSTORE="${ARTEX_KEYSTORE:-$REPO/keys/artex.keystore}"
-KS_PASS="${ARTEX_KS_PASS:-artex123}"
-KEY_PASS="${ARTEX_KEY_PASS:-artex123}"
+KS_PASS="${ARTEX_KS_PASS:?Set ARTEX_KS_PASS to the release keystore password}"
+KEY_PASS="${ARTEX_KEY_PASS:?Set ARTEX_KEY_PASS to the release key password}"
 
 [ -d "$SDK" ] || { echo "错误：找不到 Android SDK：$SDK" >&2; exit 1; }
 [ -f "$ASSETS/backend/artex" ] || { echo "错误：缺少 $ASSETS/backend/artex（先跑 prepare_backend.sh）" >&2; exit 1; }
@@ -30,7 +30,7 @@ KEY_PASS="${ARTEX_KEY_PASS:-artex123}"
 [ -f "$KEYSTORE" ] || {
   echo "错误：找不到签名密钥 $KEYSTORE" >&2
   echo "可用以下命令生成：" >&2
-  echo "  keytool -genkeypair -keystore keys/artex.keystore -alias artex -keyalg RSA -keysize 2048 -validity 10000 -storepass artex123 -keypass artex123 -dname CN=ARTEX" >&2
+  echo "  Generate a release keystore offline with a strong unique password; supply it through ARTEX_KS_PASS and ARTEX_KEY_PASS." >&2
   exit 1
 }
 
@@ -113,8 +113,9 @@ print('  修复 %d 个图标为 RGBA' % n)
 PY
 
 echo "[4/5] 签名"
+export ARTEX_KS_PASS ARTEX_KEY_PASS
 java -jar "$BT/lib/apksigner.jar" sign \
-  --ks "$KEYSTORE" --ks-pass "pass:$KS_PASS" --key-pass "pass:$KEY_PASS" \
+  --ks "$KEYSTORE" --ks-pass "env:ARTEX_KS_PASS" --key-pass "env:ARTEX_KEY_PASS" \
   --min-sdk-version 24 --out "$OUT" "$WORK/full.apk"
 
 echo "[5/5] 验证"

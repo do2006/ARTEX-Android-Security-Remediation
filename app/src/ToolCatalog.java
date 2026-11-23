@@ -25,8 +25,7 @@ import java.util.List;
 final class ToolCatalog {
 
     /** 清单地址。换仓库只改这一行 */
-    static final String CATALOG_URL =
-            "https://raw.githubusercontent.com/Srysfu/artex-mobile-tools/main/tools.json";
+    static final String CATALOG_URL = SecurityPolicy.catalogUrl("tools");
 
     private static final int CONNECT_TIMEOUT_MS = 15000;
     private static final int READ_TIMEOUT_MS = 60000;
@@ -64,12 +63,12 @@ final class ToolCatalog {
     void fetch(final FetchCallback cb) {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(CATALOG_URL).openConnection();
-            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            c.setReadTimeout(READ_TIMEOUT_MS);
-            c.setInstanceFollowRedirects(true);
+            if (!SecurityPolicy.isAllowedCatalogUrl(CATALOG_URL, "tools")) {
+                throw new Exception("内置工具清单地址无效");
+            }
+            c = openCatalog(CATALOG_URL);
             int code = c.getResponseCode();
-            if (code != 200) {
+            if (code != 200 || !SecurityPolicy.isAllowedCatalogUrl(c.getURL().toString(), "tools")) {
                 cb.onError("清单请求失败：HTTP " + code);
                 return;
             }
@@ -108,7 +107,8 @@ final class ToolCatalog {
             e.size = o.optLong("size");
             e.sha256 = o.optString("sha256");
             e.url = o.optString("url");
-            if (e.name.isEmpty() || e.url.isEmpty()) continue;
+            if (!SecurityPolicy.isSafeFileName(e.name) || !SecurityPolicy.isSha256(e.sha256)
+                    || !SecurityPolicy.isAllowedToolReleaseUrl(e.url, e.name)) continue;
             out.add(e);
         }
         return out;
@@ -123,10 +123,13 @@ final class ToolCatalog {
         File tmp = new File(destDir, ".downloading.bin");
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(e.url).openConnection();
+            if (!SecurityPolicy.isAllowedToolReleaseUrl(e.url, e.name)) {
+                cb.onError("工具下载地址不受信任");
+                return;
+            }
+            c = openRelease(e.url);
             c.setConnectTimeout(CONNECT_TIMEOUT_MS);
             c.setReadTimeout(READ_TIMEOUT_MS);
-            c.setInstanceFollowRedirects(true);
             // GitHub Release 会 302 到 objects.githubusercontent.com
             c.setRequestProperty("Accept", "application/octet-stream");
             int code = c.getResponseCode();
@@ -161,8 +164,7 @@ final class ToolCatalog {
             cb.onProgress(got, total);
 
             String actual = hex(md.digest());
-            if (e.sha256 != null && !e.sha256.isEmpty()
-                    && !e.sha256.equalsIgnoreCase(actual)) {
+            if (!SecurityPolicy.isSha256(e.sha256) || !e.sha256.equalsIgnoreCase(actual)) {
                 tmp.delete();
                 cb.onError("校验失败：sha256 不匹配\n"
                         + "期望 " + e.sha256.substring(0, Math.min(16, e.sha256.length())) + "…\n"
@@ -182,6 +184,34 @@ final class ToolCatalog {
         StringBuilder sb = new StringBuilder(b.length * 2);
         for (byte x : b) sb.append(String.format(java.util.Locale.US, "%02x", x));
         return sb.toString();
+    }
+
+    private static HttpURLConnection openCatalog(String value) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(value).openConnection();
+        c.setInstanceFollowRedirects(false);
+        c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        c.setReadTimeout(READ_TIMEOUT_MS);
+        return c;
+    }
+
+    /** Accept only the exact GitHub release route, then at most three approved CDN redirects. */
+    static HttpURLConnection openRelease(String value) throws Exception {
+        String current = value;
+        for (int redirects = 0; redirects <= 3; redirects++) {
+            HttpURLConnection c = (HttpURLConnection) new URL(current).openConnection();
+            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            c.setReadTimeout(READ_TIMEOUT_MS);
+            c.setInstanceFollowRedirects(false);
+            int code = c.getResponseCode();
+            if (code < 300 || code > 399) return c;
+            String next = c.getHeaderField("Location");
+            c.disconnect();
+            if (!SecurityPolicy.isAllowedReleaseRedirectUrl(next)) {
+                throw new Exception("下载重定向地址不受信任");
+            }
+            current = next;
+        }
+        throw new Exception("下载重定向过多");
     }
 
 }

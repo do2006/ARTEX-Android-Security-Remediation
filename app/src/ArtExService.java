@@ -126,35 +126,16 @@ public class ArtExService {
         Process b = backend;
         backend = null;
         if (b != null) {
-            b.destroy();
-            waitExit(b, 5000);
+            ProcessControl.stop(b, 5000, 0);
         }
         Process p = postgres;
-        postgres = null;
         if (p != null) {
-            p.destroy();
-            if (!waitExit(p, 15000)) {
-                p.destroyForcibly();
-                waitExit(p, 5000);
-            }
+            ProcessControl.stop(p, 15000, 5000);
         }
+        if (p == null || !p.isAlive()) postgres = null;
         // 强杀会残留 postmaster.pid（甚至 0 字节），下次启动直接报 lock file empty
         File pid = new File(pgData, "postmaster.pid");
-        if (!postgresAliveNow() && pid.exists()) pid.delete();
-    }
-
-    /** 轮询等进程退出；返回是否在超时前退出 */
-    private boolean waitExit(Process p, long timeoutMs) {
-        long end = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < end) {
-            if (!p.isAlive()) return true;
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                return !p.isAlive();
-            }
-        }
-        return !p.isAlive();
+        if ((p == null || !p.isAlive()) && pid.exists()) pid.delete();
     }
 
     private boolean postgresAliveNow() {
@@ -286,7 +267,9 @@ public class ArtExService {
             int missing = 0;
             for (String e : entries) if (!new File(toolsDir, e).exists()) missing++;
             if (missing == 0) return;
-            logLine("[ARTEX] Python 工具缺失 " + missing + " 项，开始联网自装（首次较久）…");
+            logLine("[ARTEX] Python 工具缺失 " + missing + " 项；已禁用未锁定的联网安装。请使用经审核、哈希锁定的离线 wheelhouse。");
+            return;
+            /*
             try {
                 File pyBin = new File(pgBin, "python3");
                 if (!pyBin.exists()) {
@@ -416,6 +399,7 @@ public class ArtExService {
             } catch (Throwable e) {
                 logLine("[ARTEX] Python 工具自装异常: " + e);
             }
+            */
         }, "py-tools-install");
         t.setDaemon(true);
         t.start();
@@ -952,7 +936,7 @@ public class ArtExService {
                 try {
                     List<String> cmd = new ArrayList<>();
                     cmd.add(new File(dataDir, "artex").getAbsolutePath());
-                    cmd.add("-addr"); cmd.add("0.0.0.0:" + PORT);
+                    cmd.add("-addr"); cmd.add("127.0.0.1:" + PORT);
                     cmd.add("-data"); cmd.add(new File(dataDir, "data").getAbsolutePath());
                     ProcessBuilder pb = new ProcessBuilder(cmd);
                     pb.directory(dataDir);
