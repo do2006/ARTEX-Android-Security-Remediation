@@ -4,20 +4,34 @@
 clone 下来直接构建即可，不需要跑 prepare 脚本。
 
 ```sh
-git clone https://github.com/Srysfu/artex-android.git
-cd artex-android
+git clone https://github.com/do2006/ARTEX-Android-Security-Remediation.git
+cd ARTEX-Android-Security-Remediation
 
 # 生成签名密钥（只需一次，务必离线备份）
 mkdir -p keys
 keytool -genkeypair -keystore keys/artex.keystore -alias artex \
         -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass artex123 -keypass artex123 -dname CN=ARTEX
+        -dname "CN=ARTEX"
 
-# 构建
-sh scripts/build_apk.sh dist/ARTEX.apk
+# 构建；在受控 shell 中提供强且唯一的密码，绝不写进命令历史或仓库
+export ARTEX_KS_PASS='set-a-strong-unique-keystore-password'
+export ARTEX_KEY_PASS='set-a-strong-unique-key-password'
+ANDROID_SDK=/opt/android-sdk sh scripts/build_apk.sh dist/ARTEX.apk
 ```
 
 产物约 60MB，`dist/ARTEX.apk`。
+
+## 发布前检查
+
+构建脚本只验证 APK 签名；发布者还应在一台受控 Android 8.0+ 设备上完成以下检查后再创建 GitHub Release：
+
+1. 安装自己刚构建的 APK：`adb install -r dist/ARTEX.apk`。
+2. 首次启动并等待数据库初始化完成，确认 WebView 能加载本机服务。
+3. 创建一个小型 v2 备份，再恢复它，确认恢复后的数据可用。
+4. 从面板下载一个所需工具，确认 SHA-256 校验成功；不要执行来源不明的手动导入二进制。
+5. 记录 APK 的 SHA-256、签名证书指纹和已测试的设备/Android 版本到 Release 说明。
+
+预编译的后端和 PostgreSQL 资产没有可用的可复现来源证明。每个发布者都必须自行评估这些资产，并且不得把源码编译或签名成功表述为完整运行时安全认证。
 
 ---
 
@@ -53,12 +67,14 @@ sudo apt install qemu-user-static
 | `ANDROID_SDK` | `/opt/android-sdk` | SDK 路径 |
 | `WORK` | `/tmp/artex-build` | 中间产物目录 |
 | `ARTEX_KEYSTORE` | `keys/artex.keystore` | 签名密钥 |
-| `ARTEX_KS_PASS` | `artex123` | keystore 密码 |
-| `ARTEX_KEY_PASS` | `artex123` | key 密码 |
+| `ARTEX_KS_PASS` | 必填 | keystore 密码；通过 `apksigner env:` 引用，不出现在进程参数中 |
+| `ARTEX_KEY_PASS` | 必填 | key 密码；通过 `apksigner env:` 引用，不出现在进程参数中 |
 
 例：
 
 ```sh
+export ARTEX_KS_PASS='strong-unique-keystore-password'
+export ARTEX_KEY_PASS='strong-unique-key-password'
 ANDROID_SDK=/opt/sdk ARTEX_KEYSTORE=~/my.jks sh scripts/build_apk.sh out.apk
 ```
 
@@ -183,7 +199,7 @@ private static final int ASSETS_VERSION = 7;
 
 **`找不到签名密钥`**
 
-按上面的 keytool 命令生成。脚本会直接打印可用命令。
+按上面的 keytool 命令生成，并设置两个密码环境变量。不要在命令行参数、仓库、截图或发布日志中写入密码。
 
 **`aapt: not found` / `Exec format error`**
 

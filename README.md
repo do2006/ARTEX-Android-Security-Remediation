@@ -2,11 +2,11 @@
 
 # ARTEX Android
 
-**把 ARTEX 装进手机。后端、数据库、Python 全在 APK 里，不连任何外部服务器。**
+**把 ARTEX 装进手机。后端、数据库、Python 全在 APK 里；应用服务仅监听本机。**
 
-[![Release](https://img.shields.io/github/v/release/Srysfu/artex-android?style=flat-square&label=release&color=22C55E)](https://github.com/Srysfu/artex-android/releases/latest)
+[![Repository](https://img.shields.io/badge/GitHub-do2006%2FARTEX--Android--Security--Remediation-181717?style=flat-square&logo=github)](https://github.com/do2006/ARTEX-Android-Security-Remediation)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#装)
-[![Size](https://img.shields.io/badge/APK-60MB-4A5568?style=flat-square)](#装)
+[![Security](https://img.shields.io/badge/security-hardened-22C55E?style=flat-square)](docs/SECURITY_REMEDIATION.md)
 [![License](https://img.shields.io/badge/license-MIT-4A5568?style=flat-square)](#)
 
 <picture>
@@ -33,18 +33,29 @@ ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 
         WebView 打开 127.0.0.1:8787
 ```
 
-没有服务器，没有容器，没有网络依赖。飞机上也能用。
+没有服务器或容器。核心服务可离线启动；按需下载工具和 Skill 时需要网络。
+
+## 先看这里
+
+这是一个安全加固后的维护仓库，默认分支为 `security-hardening-20261123`。先阅读：
+
+- [安装与日常使用](docs/USAGE.md)
+- [从源码构建 APK](docs/BUILD.md)
+- [安全边界与已知限制](docs/SECURITY_REMEDIATION.md)
+
+当前提交已通过 Java 主机回归测试、Android API 源码编译和静态配置检查；**尚未在真实 Android 设备上构建、安装或运行预编译后端**。请在受控设备上完成自己的发布前验证，不要把它当作已完成运行时安全认证。
 
 ## 装
 
-去 [**Releases**](https://github.com/Srysfu/artex-android/releases/latest) 下 `ARTEX-x.y.z.apk`，装。
+目前请从本仓库源码构建自己的已签名 APK，具体步骤在 [构建指南](docs/BUILD.md)。发布者提供经过设备验证的 APK 后，才应在本仓库的 Releases 页面下载。
 
 | | |
 |---|---|
 | **系统** | Android 8.0+ |
 | **首次启动** | 1-2 分钟（初始化 PostgreSQL） |
 | **体积** | APK 60 MB，首次启动后约 250 MB |
-| **工具** | 不放 APK 里，面板里按需下 |
+| **工具** | 不放 APK 里，面板里按需下载 |
+| **网络访问** | 后端只监听本机 `127.0.0.1:8787`，不提供局域网访问 |
 
 ## 用
 
@@ -53,13 +64,13 @@ ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 
 | **双指左滑** | 打开右侧面板 —— 备份恢复 · 工具管理 · Skill 管理 |
 | **双指右滑** | 打开网页侧栏 —— 任务、资产、发现、报告 |
 | **返回键** | 先网页后退，退到底再按才退出 APP |
-| **电脑访问** | 同一 WiFi 下开 `http://手机IP:8787` |
+| **电脑访问** | 不支持；服务仅限手机本机 WebView |
 
 完整说明见 **[docs/USAGE.md](docs/USAGE.md)**。
 
 ## 工具
 
-32 个工具放在独立仓库，APK 里一个都没有 —— 需要哪个下哪个，带 sha256 校验。
+32 个工具放在独立仓库，APK 里一个都没有 —— 需要哪个下哪个。清单固定到应用内审查过的不可变提交，下载要求精确的 GitHub Release 路径、HTTPS 443 和 SHA-256 校验。
 
 ```
 资产测绘  subfinder  shuffledns  puredns  alterx  asnmap  cloudlist
@@ -78,7 +89,9 @@ ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 
 
 | 想做什么 | 看哪里 |
 |---|---|
-| 自己构建一个 APK | [docs/BUILD.md](docs/BUILD.md) |
+| 自己构建并签名一个 APK | [docs/BUILD.md](docs/BUILD.md) |
+| 安装、备份和工具使用 | [docs/USAGE.md](docs/USAGE.md) |
+| 安全边界和限制 | [docs/SECURITY_REMEDIATION.md](docs/SECURITY_REMEDIATION.md) |
 | 壳对后端做了哪些适配 | [docs/ADAPTATION.md](docs/ADAPTATION.md) |
 
 > 壳里做了不少不显然的事：Android 没有 `resolv.conf`，所以 DNS 要自己注入；
