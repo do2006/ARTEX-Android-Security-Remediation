@@ -42,6 +42,7 @@ ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 
 - [安装与日常使用](docs/USAGE.md)
 - [从源码构建 APK](docs/BUILD.md)
 - [安全边界与已知限制](docs/SECURITY_REMEDIATION.md)
+- [可复现构建输入清单](docs/REPRODUCIBLE_INPUTS.md)
 
 当前提交已通过 Java 主机回归测试、Android API 源码编译和静态配置检查；**尚未在真实 Android 设备上构建、安装或运行预编译后端**。请在受控设备上完成自己的发布前验证，不要把它当作已完成运行时安全认证。
 
