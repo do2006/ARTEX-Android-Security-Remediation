@@ -1,228 +1,71 @@
-# 使用说明
+# Installation and usage
 
-## 第一次启动
+## Install the app
 
-打开后是一个极简的启动页：logo、一行状态、底部细进度条。
+There is no verified public release APK yet. Build and sign it using [BUILD.md](BUILD.md), or use an APK provided by a publisher you trust. A new APK must be signed with the same key as an existing installation to update it without uninstalling. Uninstalling may erase app data, so do not do that as a routine troubleshooting step.
 
-<img src="images/shot-01-boot.webp" alt="启动控制台" width="420">
+## First launch
 
-状态会依次变成：
+The app extracts its PostgreSQL, Python, and shell runtime, initializes the database on first launch, starts the local backend, and opens the ARTEX web interface. Initial setup can take a few minutes. Keep the app in the foreground and the device awake during first initialization. If startup appears stalled, wait several minutes and review the startup log before force-stopping the app.
 
-```
-正在启动…              ← 释放 PostgreSQL / Python / bash
-检查数据库…            ← 只有第一次会走这步（initdb 建库）
-启动 PostgreSQL…
-释放工具…
-正在启动服务…          ← 图里这行
-加载界面…
-```
+The service is reachable only from the app's WebView at `http://127.0.0.1:8787`. LAN and remote access are disabled.
 
-**1-2 分钟**走完，自动跳进主界面。
+## Navigation
 
-几个注意：
+- Swipe left with two fingers to open the right-side panel for backups, restore, tools, and skills.
+- Swipe right with two fingers to open the ARTEX web sidebar.
+- The Android Back button navigates the web page first. Press it again at the page's start to leave the app.
+- Ordinary one-finger scrolling, tapping, and table navigation are handled by the web interface.
 
-- 启动页**跟随系统深浅色**，浅色模式是白底，深色模式是黑底
-- 第 2 步「检查数据库」只在**第一次**慢，之后跳过
-- **过程中别锁屏**，锁屏会挂起进程，启动会卡住
-- 卡住了不要反复杀进程重开，先等够 2 分钟
+## Install tools
 
-## 主界面
+Standalone catalog tools are user-selected and downloaded from the pinned GitHub release route. Each download is restricted to approved HTTPS hosts and checked against its catalog SHA-256 before import.
 
-这就是后端的 Web 界面，功能都在里面：对话、任务、资产、报告。原生只负责
-把页面塞进 WebView，并针对窄屏做适配。
+The Python wheelhouse is included in the APK. To install Impacket, NetExec (`nxc`), pypykatz, and LaZagne, open the right-side panel, select **Install Python tools**, and confirm. This operation is offline, checks the lockfile and pinned wheel hashes, and stages the package tree before switching it into place. Allow several minutes and at least 200 MB of free app storage. The ARTEX backend restarts afterward to reload the Python path.
 
-### 总览
+The packages install in the x86_64 emulator, but two command paths are currently known to fail under its ARM64 translation layer: `nxc` encounters a native `netifaces` import error and `pypykatz` cannot load OpenSSL's legacy provider. Do not rely on those tools in that environment. Native ARM64 device validation is still outstanding. See [PYTHON_TOOL_WHEELHOUSE.md](PYTHON_TOOL_WHEELHOUSE.md).
 
-启动完成后先到登录页，进去后就是「总览」。一眼能看到当前状态：
+Standalone tools and Python package installation do not guarantee every protocol or feature is compatible with Android. Do not execute manually imported binaries unless their source and provenance have been reviewed.
 
-<img src="images/shot-04-overview.webp" alt="总览" width="420">
+## Back up and restore
 
-```
-活跃任务      0 / 1          ← 斜杠前是运行中，后是总数
-确认发现      23             ← 严重 3 / 高危 9 / 中危 5 / 低危 6
-资产节点      80             ← 跨任务共享
-Token 用量    222.3M         ← 入 218.5M（含缓存 180.5M）· 出 3.8M
-```
+Backups are stored in app-private storage and are not encrypted or signed. Do not upload or share them publicly. The app supports full and reduced backups; the full archive may exceed 200 MB.
 
-右上角三个圆钮是 CPU / 内存 / 磁盘的实时占用。下面那块是 LLM Token 消耗
-明细 —— 输入、缓存命中、输出分开列，还能切换 7 天 / 30 天 / 3 月 / 半年 / 一年。
+Restore accepts version-2 backups created by this hardened app. It parses the manifest, validates archive paths and expansion limits, and checks each declared file's SHA-256 before applying the restore. Legacy backups without the verified manifest are rejected; create a fresh v2 backup on the source device before migrating. Restore stages the existing data and attempts rollback if replacement fails; a rollback failure is reported in the app log.
 
-缓存命中率是省钱的关键指标 —— 上面这栏 83% 意味着大部分上下文复用了缓存，
-比全量重算便宜将近一个数量级。
+The v2 manifest detects accidental corruption but is not an authenticity signature. Backups remain unencrypted. Use a trusted private transfer method and keep a separate copy until the destination restore is confirmed.
 
-### 系统配置
+## Known limitations
 
-齿轮图标进去，左边一排横向滑动的分组：**系统与账号** / **流量与安全** /
-**Agent 行为** / 网络 / 对话（后面几个要往左滑才看得到）。
+- ARTEX runs inside Android's application sandbox. It cannot access other apps' private data or obtain desktop/system privileges.
+- LaZagne cannot read another app's private credential store; Android does not provide desktop Secret Service integration.
+- pypykatz can parse a dump supplied by the user, but it cannot access live Windows LSASS from Android.
+- NetExec and Impacket protocols may require privileges, kernel interfaces, or system services unavailable to an Android app.
+- The backend update control is not supported by this wrapper because the upstream update flow expects a process supervisor that Android does not provide.
+- There is no supported PC or LAN client mode.
 
-<img src="images/shot-05-settings.webp" alt="系统配置" width="420">
+## Troubleshooting
 
-**手机上要注意两点**：
+### Startup does not finish
 
-**1. 「一键更新」用不了。**
+Wait through first database initialization. If it continues to fail, save the in-app startup log and include the Android version and device ABI when reporting the issue. Do not delete app data before preserving backups.
 
-后端会去 GitHub 检查新版本，也能下载。但更新完需要**重启进程**，而它依赖
-守护脚本 `start.sh` 把程序重新拉起来。
+### A downloaded standalone tool is unavailable
 
-本应用的后端是 Android 前台服务用 `ProcessBuilder` 直接拉起的，**没有守护
-脚本**。更新完进程退出，服务就断了，只能强行停止 APP 再重开。
+Open the Tools panel and run its availability check. A failure can indicate an unsupported CPU format, a glibc dependency not present on Android, or a missing executable permission. Only install catalog files that pass the SHA-256 check.
 
-截图里的「立即更新」是灰色不可点的，就是这个原因。
+### Python tools install but a command fails
 
-**2. 本版本不提供局域网访问。**
+Check the in-app log and the platform limitations above. On x86_64 translation, `nxc` and `pypykatz` have known native-runtime failures. A successful wheel install is not proof that a command's features work. Report the exact command and traceback; do not use it against a target while it is in a failed or partially supported state.
 
-后端只监听 `127.0.0.1:8787`，WebView 仅允许加载这个本机地址。电脑或同一 Wi-Fi
-中的其他设备无法访问服务；这是刻意的默认安全边界。
+### Moving to another phone
 
-### 手机上的额外操作
+Create a v2 backup on the source device, transfer it privately, install the app on the destination, let first startup finish, then select the archive from the Restore panel. The archive is not encrypted; keep it private and retain the original until restore is confirmed.
 
-| 操作 | 手势 |
-|---|---|
-| 后退 | 返回键。网页能退就退网页，退到首页再按才退出 APP |
-| 右侧面板 | **双指左滑** |
-| 网页侧栏 | **双指右滑** |
+### Offline use
 
-多指手势之外，单指操作完全交给网页 —— 滚动、点击、表格横滑都正常。
+The core local service can start offline after initial setup. Catalog tools and skills require a network connection to download. Python wheels are included in the APK and install offline after the user confirms.
 
-## 右侧面板
+### Logs
 
-从右边滑出来，盖住屏幕 84% 宽，左边留一条模糊的底图。默认三组都是折叠的：
-
-<img src="images/shot-02-panel.webp" alt="右侧面板" width="420">
-
-三组折叠头左边各有一个图标，一眼看出哪个是工具、哪个是 skill：
-
-```
-▤  已安装 · 33          ← 叠层 = 已就位的一批
-☁  从 GitHub 下载       ← 云 + 箭头
-📖 Skill 库             ← 翻开的书
-```
-
-工具和 skill 的折叠头都带「已装 / 总数」计数。
-截图里 `Skill 库` 还没有数字，是清单还在拉取 —— 加载完会变成
-`Skill 库 · 2/2` 这样。
-
-### 数据
-
-**备份**会问你选哪种：
-
-| 类型 | 内容 | 大小 |
-|---|---|---|
-| 完整备份 | 数据库 + 全部任务文件（含下载的样本、解包结果） | 200MB+ |
-| 精简备份 | 只含数据库与记录，跳过任务工作目录 | 30MB 左右 |
-
-备份完成后服务会自动重启。备份存放在应用私有目录，不会自动导出到公共下载目录；在没有用户持有的加密密钥和恢复流程前，不应把备份公开分享。
-
-**恢复**：选一个本版本创建的 zip。恢复前会先保留当前状态，失败时自动回滚。恢复会拒绝旧版、空或损坏的 manifest，并校验每个归档文件的 SHA-256；请在旧设备上重新创建 v2 备份后再迁移。
-
-### 工具
-
-工具**不放在 APK 里**，按需下载。32 个工具都在 [artex-mobile-tools](https://github.com/Srysfu/artex-mobile-tools) 的 Release 上。
-
-展开后分两组：
-
-**已安装** —— 当前能用的工具，每行显示大小和版本号，名字前有绿点。点进去可以：
-
-- 重新检测（跑一次看能不能用，顺带刷新版本号）
-- 删除
-
-最下面有「导入」按钮，可以装自己找的二进制。
-
-**从 GitHub 下载** —— 共 32 个，按分类排列：
-
-```
-资产测绘   · 9   subfinder  shuffledns  puredns  alterx  asnmap
-                 cloudlist  cdncheck  uncover  gau
-探测指纹   · 4   httpx  dnsx  tlsx  naabu
-内容发现   · 3   katana  ffuf  gobuster
-漏洞扫描   · 5   nuclei  afrog  dalfox  gitleaks  interactsh-client
-隧道穿透   · 8   gost  npc  chisel  suo5
-                 frp-frpc  frp-frps  ligolo-agent  ligolo-proxy
-工具箱     · 2   fscan  gogo
-其他       · 1   notify
-```
-
-**已经装过的会整行标绿**，一眼能看出哪些已就位。点击未装的项开始下载，带 sha256 校验。
-
-绿色长这样（示意图，非截图）：
-
-<img src="images/shot-03-tools.webp" alt="工具列表" width="420">
-
-勾、工具名、说明文字三处都是绿色 —— 前两处实心，说明文字稍淡。
-浅色模式用深一点的绿（`#15803D`），深色模式用亮一点的（`#4ADE80`），
-否则在对应底色上要么发灰要么刺眼。
-
-单个工具 20-150MB，装之前想清楚。
-
-### Skill
-
-预置 2 个 skill：
-
-```
-api-recon       API 接口侦察
-playwright-cli  浏览器自动化
-```
-
-装上的 skill 后端就能调用。也可以删除。
-
-## 通知
-
-启动完成后通知栏有一条：
-
-```
-ARTEX
-服务运行中
-```
-
-点它回到 APP。**没有停止按钮** —— 想停服务，从系统设置里强行停止应用，或者从最近任务里划掉。
-
-## 本机访问限制
-
-服务仅可由应用自身的 WebView 通过 `http://127.0.0.1:8787` 访问。电脑、局域网设备和公共网络均无法直连；没有计划通过端口转发或修改绑定地址来绕过这个限制。
-
-## 桌面快捷方式
-
-长按桌面图标会有「扫描」快捷入口，可以直接调起摄像头扫二维码。
-
-## 常见问题
-
-**问：一直卡在控制台不动。**
-
-看最后一行状态是什么：
-
-- 「启动 PostgreSQL…」卡住 → 上次没正常退出，数据库在恢复。先强行停止应用，再重开
-- 「启动服务…」反复显示「重新启动服务（第 N 次）」 → 后端在重试。它会试 30 次（约 1 分钟），等它走完
-- 完全没动静 → 可能锁屏了，解锁看看
-
-**问：工具装了但后端说找不到。**
-
-面板 → 已安装 → 点那个工具 → 重新检测。会跑一次 `-version`，输出会显示在面板底部。如果显示「不可用」，可能是：
-
-- 不是 AArch64 的 ELF
-- 动态链接了 glibc（`ld-linux-aarch64.so`），Android 跑不了
-- 缺 `+x` 权限（导入的会自动加）
-
-**问：换手机怎么迁移？**
-
-1. 旧手机：面板 → 备份 → 完整备份
-2. 在受控环境中从应用私有备份目录取出 v2 zip；不要把未加密备份上传到公共位置
-3. 新手机：装 APP，启动一次，等初始化完
-4. 面板 → 恢复 → 选那个 zip
-
-**问：能不能不联网用？**
-
-能启动，但一个工具都没有。工具全在 GitHub 上。
-
-想离线用，先把工具装满再断网。
-
-**问：占多少空间？**
-
-```
-APK 本身       60MB
-首次启动后     约 250MB（解压 assets + 建库）
-装满 32 个工具 再加约 800MB
-```
-
-**问：日志在哪？**
-
-启动失败时日志会写到 `Android/data/com.artex.mobile/files/artex-log.txt`，失败界面也能直接看到。
+Startup logs can be viewed in the failure screen. The app also writes a diagnostic log under its external app-specific files directory (`Android/data/io.nightfall.artex/files/`). Avoid posting logs publicly before checking for sensitive paths or data.

@@ -16,6 +16,29 @@ final class SecurityPolicy {
         return value != null && value.matches("(?i)[0-9a-f]{64}");
     }
 
+    static boolean supportsArm64Runtime(String[] supportedAbis) {
+        if (supportedAbis == null) return false;
+        for (String abi : supportedAbis) {
+            if ("arm64-v8a".equals(abi)) return true;
+        }
+        return false;
+    }
+
+    static boolean usesNativeArm64Runtime(String[] supportedAbis) {
+        return supportedAbis != null && supportedAbis.length > 0
+                && "arm64-v8a".equals(supportedAbis[0]);
+    }
+
+    static String[] translatedArm64PipOptions(String[] supportedAbis) {
+        if (!supportsArm64Runtime(supportedAbis) || usesNativeArm64Runtime(supportedAbis)) {
+            return new String[0];
+        }
+        return new String[]{"--only-binary=:all:", "--platform=android_aarch64",
+                "--platform=android_24_aarch64", "--python-version=3.14",
+                "--implementation=cp", "--abi=cp314", "--abi=cp36-abi3",
+                "--abi=cp37-abi3"};
+    }
+
     static boolean isAllowedDownloadUrl(String value) {
         return isAllowedToolReleaseUrl(value, null) || isAllowedSkillReleaseUrl(value, null);
     }

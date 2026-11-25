@@ -47,19 +47,19 @@ public class RestoreManager {
         boolean pgMoved = false;
         boolean artexMoved = false;
         try {
-            cb.onProgress("停止服务…");
+            cb.onProgress("Stopping service…");
             if (svc != null) svc.stop();
             waitPgExit(cb);
 
-            cb.onProgress("备份现有数据（以便失败回滚）…");
+            cb.onProgress("Backing up current data for rollback…");
             if (!RestoreFiles.deleteRecursive(pgOld) || !RestoreFiles.deleteRecursive(artexOld))
-                throw new Exception("无法清理旧恢复备份，已取消恢复");
+                throw new Exception("Could not clear the previous restore backup; restore canceled");
             if (pg.exists() && !(pgMoved = pg.renameTo(pgOld)))
-                throw new Exception("无法保留现有数据库，已取消恢复");
+                throw new Exception("Could not preserve the current database; restore canceled");
             if (artex.exists() && !(artexMoved = artex.renameTo(artexOld)))
-                throw new Exception("无法保留现有 ARTEX 数据，已取消恢复");
+                throw new Exception("Could not preserve current ARTEX data; restore canceled");
 
-            cb.onProgress("解压备份…");
+            cb.onProgress("Extracting backup…");
             int n = unzip(zipUri, filesDir, cb);
 
             // 必须校验到实质内容：
@@ -67,11 +67,11 @@ public class RestoreManager {
             // 并不代表业务数据也解出来了。所以还要看 base/ 里有没有库文件。
             File newPg = new File(filesDir, "pgdata");
             if (!new File(newPg, "PG_VERSION").exists()) {
-                throw new Exception("备份不完整：pgdata 里没有 PG_VERSION");
+                throw new Exception("Incomplete backup: pgdata does not contain PG_VERSION");
             }
             File base = new File(newPg, "base");
             if (!base.isDirectory() || base.list() == null || base.list().length == 0) {
-                throw new Exception("备份不完整：pgdata/base 为空（只还原了 " + n + " 个文件）");
+                throw new Exception("Incomplete backup: pgdata/base is empty (only " + n + " files were restored)");
             }
 
             // PG 对数据目录权限敏感，恢复后修正
@@ -87,19 +87,19 @@ public class RestoreManager {
             // 先清掉更早的，再改名。
             pruneOldBackups();
             if (pgOld.exists() && !pgOld.renameTo(new File(filesDir, "pgdata.old-" + stamp)))
-                throw new Exception("恢复完成但无法保留旧数据库副本");
+                throw new Exception("Restore completed, but the previous database copy could not be retained");
             if (artexOld.exists() && !artexOld.renameTo(new File(filesDir, "artex.old-" + stamp)))
-                throw new Exception("恢复完成但无法保留旧 ARTEX 数据副本");
+                throw new Exception("Restore completed, but the previous ARTEX data copy could not be retained");
 
-            cb.onProgress("完成，共还原 " + n + " 个文件");
+            cb.onProgress("Completed; restored " + n + " files");
             cb.onDone();
         } catch (Throwable t) {
-            Log.e("ARTEX", "恢复失败", t);
+            Log.e("ARTEX", "Restore failed", t);
             // 回滚：删掉解压出来的一半，恢复原数据
             String rollbackFailures = RestoreFiles.rollback(pg, pgOld, pgMoved, artex, artexOld, artexMoved);
-            if (!rollbackFailures.isEmpty()) Log.e("ARTEX", "回滚失败: " + rollbackFailures);
+            if (!rollbackFailures.isEmpty()) Log.e("ARTEX", "Rollback failed: " + rollbackFailures);
             String message = t.getMessage() == null ? t.toString() : t.getMessage();
-            cb.onError(rollbackFailures.isEmpty() ? message : message + "；回滚失败：" + rollbackFailures);
+            cb.onError(rollbackFailures.isEmpty() ? message : message + "; rollback failed: " + rollbackFailures);
         }
     }
 
@@ -115,7 +115,7 @@ public class RestoreManager {
                 }
             }
         } catch (Throwable t) {
-            Log.w("ARTEX", "清理旧备份失败: " + t);
+            Log.w("ARTEX", "Failed to clean up old backup: " + t);
         }
     }
 
@@ -123,19 +123,19 @@ public class RestoreManager {
         File pid = new File(filesDir, "pgdata/postmaster.pid");
         for (int i = 0; i < 40; i++) {
             if (!pid.exists()) return;
-            if (i % 6 == 0) cb.onProgress("等待数据库退出…");
+            if (i % 6 == 0) cb.onProgress("Waiting for the database to stop…");
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                throw new Exception("等待数据库退出时被中断");
+                throw new Exception("Interrupted while waiting for the database to stop");
             }
         }
-        throw new Exception("数据库未在超时内退出，已取消恢复以保护数据一致性");
+        throw new Exception("Database did not stop before the timeout; restore canceled to protect data consistency");
     }
 
     private int unzip(Uri uri, File destRoot, Callback cb) throws Exception {
         InputStream raw = ctx.getContentResolver().openInputStream(uri);
-        if (raw == null) throw new Exception("无法读取所选文件");
+        if (raw == null) throw new Exception("Could not read the selected file");
         int count = 0;
         RestorePolicy.Limits limits = new RestorePolicy.Limits();
         Set<String> seen = new HashSet<>();
@@ -143,7 +143,7 @@ public class RestoreManager {
         try {
             ZipEntry e = zin.getNextEntry();
             if (e == null || e.isDirectory() || !"manifest.json".equals(e.getName())) {
-                throw new Exception("备份必须以 manifest.json 开始");
+                throw new Exception("Backup must begin with manifest.json");
             }
             limits.beginEntry();
             BackupManifest manifest = BackupManifest.parse(readManifest(zin));
@@ -154,18 +154,18 @@ public class RestoreManager {
             while ((e = zin.getNextEntry()) != null) {
                 String name = e.getName();
                 if (!RestorePolicy.isAllowedEntry(name) || !seen.add(name)) {
-                    throw new Exception("备份包含不允许或重复的路径：" + name);
+                    throw new Exception("Backup contains a disallowed or duplicate path: " + name);
                 }
                 limits.beginEntry();
                 File out = new File(destRoot, name);
                 if (e.isDirectory()) {
-                    if (!out.mkdirs() && !out.isDirectory()) throw new Exception("无法创建目录：" + name);
+                    if (!out.mkdirs() && !out.isDirectory()) throw new Exception("Could not create directory: " + name);
                 } else {
-                    if (!RestorePolicy.isRestorableFile(name)) throw new Exception("备份文件路径无效：" + name);
+                    if (!RestorePolicy.isRestorableFile(name)) throw new Exception("Invalid backup file path: " + name);
                     String expectedHash = expected.remove(name);
-                    if (expectedHash == null) throw new Exception("备份文件未在 manifest 中声明：" + name);
+                    if (expectedHash == null) throw new Exception("Backup file is not declared in the manifest: " + name);
                     if (!out.getParentFile().mkdirs() && !out.getParentFile().isDirectory())
-                        throw new Exception("无法创建目录：" + name);
+                        throw new Exception("Could not create directory: " + name);
                     long entryBytes = 0;
                     MessageDigest digest = MessageDigest.getInstance("SHA-256");
                     try (FileOutputStream fo = new FileOutputStream(out)) {
@@ -178,14 +178,14 @@ public class RestoreManager {
                         }
                     }
                     if (!expectedHash.equalsIgnoreCase(hex(digest.digest()))) {
-                        throw new Exception("备份文件校验失败：" + name);
+                        throw new Exception("Backup file integrity check failed: " + name);
                     }
                     count++;
-                    if (count % 200 == 0) cb.onProgress("已还原 " + count + " 个文件…");
+                    if (count % 200 == 0) cb.onProgress("Restored " + count + " files…");
                 }
                 zin.closeEntry();
             }
-            if (!expected.isEmpty()) throw new Exception("备份缺少 manifest 声明的文件");
+            if (!expected.isEmpty()) throw new Exception("Backup is missing a file declared in the manifest");
         } finally {
             try {
                 zin.close();
@@ -200,7 +200,7 @@ public class RestoreManager {
         int read;
         while ((read = zin.read(buffer)) > 0) {
             if (out.size() + read > BackupManifest.MAX_MANIFEST_BYTES) {
-                throw new Exception("备份 manifest 超过限制");
+                throw new Exception("Backup manifest exceeds the size limit");
             }
             out.write(buffer, 0, read);
         }

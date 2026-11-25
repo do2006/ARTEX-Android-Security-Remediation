@@ -4,41 +4,42 @@
 约束：Android 应用的私有目录是 /data/user/0/<包名>，而 /data/data/<包名>
 在部分 ROM 上因 SELinux 不可达，所以必须使用真实路径。
 
-为了让"等长替换"成立，我们把 PG 安装到 filesDir 的父目录下、目录名缩为单字符 p：
+为了让"等长替换"成立，PG 安装在 filesDir 的父目录，也就是包的数据根目录：
 
     原：/data/data/com.termux/files/usr     （31 字符）
-    新：/data/user/0/com.artex.mobile/p     （31 字符）
+    新：/data/user/0/io.nightfall.artex     （31 字符）
 
 两者恰好等长，替换后二进制长度不变，短出的部分用 \\0 补齐。
 
 替换必须"完整路径优先、长度降序"，否则 /usr 会先把
-/usr/share/postgresql 截断成 /p/share（丢失 postgresql 层）。
+/usr/share/postgresql 截断成 /share（丢失 postgresql 层）。
 """
 import sys
 import glob
 import os
 
 OLD = b"/data/data/com.termux/files"
-NEW = b"/data/user/0/com.artex.mobile"
+NEW = b"/data/user/0/io.nightfall.artex"
+LEGACY_ROOT = b"/data/user/0/com.artex.mobile/p"
 
 PAIRS = [
-    (OLD + b"/usr/share/postgresql",          NEW + b"/p/share/postgresql"),
-    (OLD + b"/usr/share/doc//postgresql",     NEW + b"/p/share/doc//postgresql"),
-    (OLD + b"/usr/share/locale",              NEW + b"/p/share/locale"),
-    (OLD + b"/usr/share/man",                 NEW + b"/p/share/man"),
-    (OLD + b"/usr/include/postgresql/server", NEW + b"/p/inc/pgserver"),
-    (OLD + b"/usr/include/postgresql",        NEW + b"/p/inc/pg"),
-    (OLD + b"/usr/lib/postgresql",            NEW + b"/p/lib/postgresql"),
-    (OLD + b"/usr/etc/postgresql",            NEW + b"/p/etc/postgresql"),
-    (OLD + b"/usr/bin/bash",                  NEW + b"/p/bin/bash"),
-    (OLD + b"/usr/bin/login",                 NEW + b"/p/bin/login"),
-    (OLD + b"/usr/lib",                       NEW + b"/p/lib"),
-    (OLD + b"/usr/tmp",                       NEW + b"/p/tmp"),
-    (OLD + b"/usr/bin",                       NEW + b"/p/bin"),
-    (OLD + b"/usr/etc",                       NEW + b"/p/etc"),
-    (OLD + b"/usr/include",                   NEW + b"/p/inc"),
-    (OLD + b"/usr",                           NEW + b"/p"),
-    (OLD + b"/home",                          NEW + b"/h"),
+    (OLD + b"/usr/share/postgresql",          NEW + b"/share/postgresql"),
+    (OLD + b"/usr/share/doc//postgresql",     NEW + b"/share/doc//postgresql"),
+    (OLD + b"/usr/share/locale",              NEW + b"/share/locale"),
+    (OLD + b"/usr/share/man",                 NEW + b"/share/man"),
+    (OLD + b"/usr/include/postgresql/server", NEW + b"/include/pgserver"),
+    (OLD + b"/usr/include/postgresql",        NEW + b"/include/pg"),
+    (OLD + b"/usr/lib/postgresql",            NEW + b"/lib/postgresql"),
+    (OLD + b"/usr/etc/postgresql",            NEW + b"/etc/postgresql"),
+    (OLD + b"/usr/bin/bash",                  NEW + b"/bin/bash"),
+    (OLD + b"/usr/bin/login",                 NEW + b"/bin/login"),
+    (OLD + b"/usr/lib",                       NEW + b"/lib"),
+    (OLD + b"/usr/tmp",                       NEW + b"/tmp"),
+    (OLD + b"/usr/bin",                       NEW + b"/bin"),
+    (OLD + b"/usr/etc",                       NEW + b"/etc"),
+    (OLD + b"/usr/include",                   NEW + b"/include"),
+    (OLD + b"/usr",                           NEW),
+    (OLD + b"/home",                          NEW),
 ]
 
 # 新路径不能比原路径长，否则等长替换不成立
@@ -52,7 +53,11 @@ for old, new in PAIRS:
 def patch(path: str) -> int:
     with open(path, "rb") as f:
         data = f.read()
-    count = 0
+    count = data.count(LEGACY_ROOT)
+    data = data.replace(LEGACY_ROOT, NEW)
+    legacy_home = b"/data/user/0/com.artex.mobile/h"
+    count += data.count(legacy_home)
+    data = data.replace(legacy_home, NEW)
     for old, new in PAIRS:
         n = data.count(old)
         if n:

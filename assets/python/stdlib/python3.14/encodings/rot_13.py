@@ -1,4 +1,4 @@
-#!/data/user/0/com.artex.mobile/p/bin/env python
+#!/data/user/0/io.nightfall.artex/bin/env python
 """ Python Character Mapping Codec for ROT13.
 
 This codec de/encodes from str to str.

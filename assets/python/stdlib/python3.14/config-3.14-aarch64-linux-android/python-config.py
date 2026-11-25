@@ -1,4 +1,4 @@
-#!/data/user/0/com.artex.mobile/p/bin/python3.14
+#!/data/user/0/io.nightfall.artex/bin/python3.14
 # -*- python -*-
 
 # Keep this script in sync with python-config.sh.in

@@ -1,0 +1,144 @@
+diff --git a/web/src/app/layout.tsx b/web/src/app/layout.tsx
+index 1dd1800..f5a29c2 100644
+--- a/web/src/app/layout.tsx
++++ b/web/src/app/layout.tsx
+@@ -23,7 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode
+     PREFERENCE_DEFAULTS;
+   return (
+     <html
+-      lang="zh-CN"
++      lang="en"
+       data-theme-mode={theme_mode}
+       data-theme-preset={theme_preset}
+       data-content-layout={content_layout}
+diff --git a/web/src/config/app-config.ts b/web/src/config/app-config.ts
+index 42fe60b..b29abcd 100644
+--- a/web/src/config/app-config.ts
++++ b/web/src/config/app-config.ts
+@@ -7,7 +7,7 @@ export const APP_CONFIG = {
+   version: packageJson.version,
+   copyright: `© ${currentYear}, ARTEX.`,
+   meta: {
+-    title: "ARTEX — 自主渗透测试控制台",
+-    description: "LLM 驱动的自主渗透测试系统控制台",
++    title: "ARTEX — Autonomous Pentesting Console",
++    description: "An LLM-powered autonomous penetration testing console",
+   },
+ };
+diff --git a/web/src/i18n/README.md b/web/src/i18n/README.md
+index b598a25..2f7f523 100644
+--- a/web/src/i18n/README.md
++++ b/web/src/i18n/README.md
+@@ -18,7 +18,7 @@
+ - 通知推送页的六类渠道表单、全局设置、过滤条件摘要、投递列表、状态与时间、常见校验错误及演示模式提示；Webhook 模板语法和第三方响应保留原文。
+ - 数量文案的英文单复数；切换语言时设置表单不重新加载，已展开的执行记录按新语言显示标签，原始命令与输出保持原文。
+
+-中文是默认语言。静态 HTML 和首次客户端渲染使用中文，挂载后读取 `localStorage.artex_locale`。保存过英文偏好的用户在刷新时可能短暂看到中文。
++English is the default language. Static HTML and the first client render use English; after mounting, the app applies the saved `localStorage.artex_locale` preference. Users can still switch to Simplified Chinese from the language menu.
+
+ ## 页面覆盖（2026-11-10 本轮）
+
+diff --git a/web/src/i18n/config.ts b/web/src/i18n/config.ts
+index 16366b8..c974c80 100644
+--- a/web/src/i18n/config.ts
++++ b/web/src/i18n/config.ts
+@@ -1,8 +1,9 @@
+-export const DEFAULT_LOCALE = "zh-CN";
+-export const SUPPORTED_LOCALES = [DEFAULT_LOCALE, "en"] as const;
++export const DEFAULT_LOCALE = "en";
++export const SUPPORTED_LOCALES = [DEFAULT_LOCALE, "zh-CN"] as const;
+ export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
+ export const LOCALE_STORAGE_KEY = "artex_locale";
+
+ export function resolveLocale(value: string | null | undefined): AppLocale {
+-  return /^en(?:-|$)/i.test(value ?? "") ? "en" : DEFAULT_LOCALE;
++  if (/^zh(?:-|$)/i.test(value ?? "")) return "zh-CN";
++  return DEFAULT_LOCALE;
+ }
+diff --git a/web/src/i18n/i18n.test.cjs b/web/src/i18n/i18n.test.cjs
+index f707bed..f9db644 100644
+--- a/web/src/i18n/i18n.test.cjs
++++ b/web/src/i18n/i18n.test.cjs
+@@ -48,13 +48,16 @@ test("translation resources are complete and preserve interpolation parameters",
+   }
+ });
+
+-test("instances start in Chinese, switch synchronously and remain isolated", async () => {
++test("instances start in English, switch synchronously and remain isolated", async () => {
+   const first = createAppI18n();
+   const second = createAppI18n();
++  assert.equal(first.t("auth.login"), "Sign in");
++  assert.equal(second.t("auth.login"), "Sign in");
++  await first.changeLanguage("zh-CN");
+   assert.equal(first.t("auth.login"), "登录");
++  assert.equal(second.t("auth.login"), "Sign in");
+   await first.changeLanguage("en");
+   assert.equal(first.t("auth.login"), "Sign in");
+-  assert.equal(second.t("auth.login"), "登录");
+   assert.equal(first.t("mention.searchType", { kind: "Endpoint" }), "Search Endpoint");
+   assert.equal(first.t("pagination.range", { from: 1, to: 10, total: 23 }), "1–10 of 23 records");
+   assert.equal(first.t("pagination.range", { from: 1, to: 1, total: 1, count: 1 }), "1–1 of 1 record");
+@@ -64,7 +67,8 @@ test("instances start in Chinese, switch synchronously and remain isolated", asy
+ });
+
+ test("unsupported saved locale values use the deterministic static default", () => {
+-  for (const value of [undefined, null, "", "fr", "corrupted", "zh-TW"]) assert.equal(resolveLocale(value), "zh-CN");
++  for (const value of [undefined, null, "", "fr", "corrupted"]) assert.equal(resolveLocale(value), "en");
++  for (const value of ["zh", "zh-CN", "zh-TW"]) assert.equal(resolveLocale(value), "zh-CN");
+   for (const value of ["en", "en-US", "EN-gb"]) assert.equal(resolveLocale(value), "en");
+ });
+
+@@ -99,6 +103,7 @@ test("settings translation callbacks read the active provider's language after s
+   const { renderToStaticMarkup } = require("react-dom/server");
+   const { I18nextProvider } = require("react-i18next");
+   const i18n = createAppI18n();
++  await i18n.changeLanguage("zh-CN");
+   let callback;
+   function Probe() {
+     callback = useLiveTranslation().liveT;
+@@ -195,6 +200,7 @@ test("overview and conversation counts use English singular and plural forms", a
+
+ test("render translations invalidate caches while lifecycle translations keep a stable identity", async () => {
+   const i18n = createAppI18n();
++  await i18n.changeLanguage("zh-CN");
+   let memo;
+   let memoDependencies;
+   const exports = {};
+@@ -233,6 +239,7 @@ test("render translations invalidate caches while lifecycle translations keep a
+ test("execution labels switch language without translating cached commands or tool output", async () => {
+   const { formatToolDetail, toolInputText } = loadSource("../lib/execution-display.ts");
+   const i18n = createAppI18n();
++  await i18n.changeLanguage("zh-CN");
+   const command = 'printf "用户输入"';
+   const output = "原始工具输出\nAI 输出也保持原文";
+   const parts = [
+@@ -399,6 +406,7 @@ test("task summaries, archive eligibility and category scope labels switch witho
+     }).outputText,
+   );
+   const i18n = createAppI18n();
++  await i18n.changeLanguage("zh-CN");
+   const translate = i18n.t.bind(i18n);
+   const counts = {
+     assets_deleted: 1,
+diff --git a/web/src/i18n/screen-pages.test.cjs b/web/src/i18n/screen-pages.test.cjs
+index f670980..e31a337 100644
+--- a/web/src/i18n/screen-pages.test.cjs
++++ b/web/src/i18n/screen-pages.test.cjs
+@@ -47,7 +47,7 @@ function load(inputFile) {
+           ? load(base + "/src/" + id.slice(2))
+           : id.startsWith(".")
+             ? load(path.resolve(path.dirname(file), id))
+-            : id === "react" && file.endsWith("/components/intelligence-panel.tsx")
++            : id === "react" && file.replaceAll("\\", "/").endsWith("/components/intelligence-panel.tsx")
+               ? {
+                   ...React,
+                   useState(initial) {
+@@ -129,7 +129,7 @@ test("all task detail tabs render their English fixed UI", async () => {
+ });
+
+ test("intelligence renders real preview responses, populated records and localized errors", async () => {
+-  const file = base + "/src/components/intelligence-panel.tsx";
++  const file = path.resolve(base + "/src/components/intelligence-panel.tsx");
+   const { IntelligencePanel } = load(file);
+   const transport = load(base + "/src/lib/mock/handler.ts");
+   const original = "原始情报内容";

@@ -97,8 +97,8 @@ CONFIGURE_LDFLAGS_NODIST=
 # LDFLAGS_NOLTO is an extra flag to disable lto. It is used to speed up building
 # of _bootstrap_python and _freeze_module tools, which don't need LTO.
 CONFIGURE_LDFLAGS_NOLTO=
-CONFIGURE_CPPFLAGS=	 -isystem/data/user/0/com.artex.mobile/p/include/c++/v1 -isystem/data/user/0/com.artex.mobile/p/include -I/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/include
-CONFIGURE_LDFLAGS=	-L/data/user/0/com.artex.mobile/p/lib -Wl,-rpath=/data/user/0/com.artex.mobile/p/lib -Wl,--enable-new-dtags  -Wl,-z,relro,-z,now -Wl,--no-as-needed,-landroid-support,--as-needed -L/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/lib -landroid-posix-semaphore
+CONFIGURE_CPPFLAGS=	 -isystem/data/user/0/io.nightfall.artex/include/c++/v1 -isystem/data/user/0/io.nightfall.artex/include -I/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/include
+CONFIGURE_LDFLAGS=	-L/data/user/0/io.nightfall.artex/lib -Wl,-rpath=/data/user/0/io.nightfall.artex/lib -Wl,--enable-new-dtags  -Wl,-z,relro,-z,now -Wl,--no-as-needed,-landroid-support,--as-needed -L/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/lib -landroid-posix-semaphore
 # Avoid assigning CFLAGS, LDFLAGS, etc. so users can use them on the
 # command line to append to these values without stomping the pre-set
 # values.
@@ -139,7 +139,7 @@ MULTIARCH=	aarch64-linux-android
 MULTIARCH_CPPFLAGS = -DMULTIARCH=\"aarch64-linux-android\"
 
 # Install prefix for architecture-independent files
-prefix=		/data/user/0/com.artex.mobile/p
+prefix=		/data/user/0/io.nightfall.artex
 
 # Install prefix for architecture-dependent files
 exec_prefix=	${prefix}
@@ -156,9 +156,9 @@ datarootdir=    ${prefix}/share
 
 # Expanded directories
 BINDIR=		${exec_prefix}/bin
-LIBDIR=		/data/user/0/com.artex.mobile/p/lib
+LIBDIR=		/data/user/0/io.nightfall.artex/lib
 MANDIR=		${datarootdir}/man
-INCLUDEDIR=	/data/user/0/com.artex.mobile/p/include
+INCLUDEDIR=	/data/user/0/io.nightfall.artex/include
 CONFINCLUDEDIR=	$(exec_prefix)/include
 PLATLIBDIR=	lib
 SCRIPTDIR=	$(prefix)/$(PLATLIBDIR)
@@ -327,15 +327,15 @@ MODULE__HMAC_STATE=yes
 MODULE__HMAC_CFLAGS=-I$(srcdir)/Modules/_hacl -I$(srcdir)/Modules/_hacl/include -D_BSD_SOURCE -D_DEFAULT_SOURCE -DLINUX_NO_EXPLICIT_BZERO $(PY_STDMODULE_CFLAGS) $(CCSHARED)
 MODULE__HMAC_LDFLAGS=$(LIBHACL_HMAC_LIB_SHARED)
 MODULE__CTYPES_STATE=yes
-MODULE__CTYPES_CFLAGS=-fno-strict-overflow -I/data/user/0/com.artex.mobile/p/include
-MODULE__CTYPES_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lffi -ldl
+MODULE__CTYPES_CFLAGS=-fno-strict-overflow -I/data/user/0/io.nightfall.artex/include
+MODULE__CTYPES_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lffi -ldl
 MODULE__CURSES_STATE=yes
-MODULE__CURSES_CFLAGS=-DNCURSES_WIDECHAR -I/data/user/0/com.artex.mobile/p/include
-MODULE__CURSES_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -Wl,-rpath=/data/user/0/com.artex.mobile/p/lib -Wl,--enable-new-dtags -lncursesw
+MODULE__CURSES_CFLAGS=-DNCURSES_WIDECHAR -I/data/user/0/io.nightfall.artex/include
+MODULE__CURSES_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -Wl,-rpath=/data/user/0/io.nightfall.artex/lib -Wl,--enable-new-dtags -lncursesw
 
 MODULE__CURSES_PANEL_STATE=yes
-MODULE__CURSES_PANEL_CFLAGS=-I/data/user/0/com.artex.mobile/p/include -DNCURSES_WIDECHAR -DNCURSES_WIDECHAR -I/data/user/0/com.artex.mobile/p/include
-MODULE__CURSES_PANEL_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -Wl,-rpath=/data/user/0/com.artex.mobile/p/lib -Wl,--enable-new-dtags -lpanelw -L/data/user/0/com.artex.mobile/p/lib -Wl,-rpath=/data/user/0/com.artex.mobile/p/lib -Wl,--enable-new-dtags -lncursesw
+MODULE__CURSES_PANEL_CFLAGS=-I/data/user/0/io.nightfall.artex/include -DNCURSES_WIDECHAR -DNCURSES_WIDECHAR -I/data/user/0/io.nightfall.artex/include
+MODULE__CURSES_PANEL_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -Wl,-rpath=/data/user/0/io.nightfall.artex/lib -Wl,--enable-new-dtags -lpanelw -L/data/user/0/io.nightfall.artex/lib -Wl,-rpath=/data/user/0/io.nightfall.artex/lib -Wl,--enable-new-dtags -lncursesw
 
 MODULE__DECIMAL_STATE=yes
 MODULE__DECIMAL_CFLAGS=-I$(srcdir)/Modules/_decimal/libmpdec -DCONFIG_64=1 -DANSI=1 -DHAVE_UINT128_T=1
@@ -347,36 +347,36 @@ MODULE__GDBM_STATE=yes
 MODULE__GDBM_CFLAGS=
 MODULE__GDBM_LDFLAGS=-lgdbm
 MODULE_READLINE_STATE=yes
-MODULE_READLINE_CFLAGS=-I/data/user/0/com.artex.mobile/p/include -DNCURSES_WIDECHAR
-MODULE_READLINE_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lreadline
+MODULE_READLINE_CFLAGS=-I/data/user/0/io.nightfall.artex/include -DNCURSES_WIDECHAR
+MODULE_READLINE_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lreadline
 MODULE__SQLITE3_STATE=yes
-MODULE__SQLITE3_CFLAGS=-I/data/user/0/com.artex.mobile/p/include -I$(srcdir)/Modules/_sqlite
-MODULE__SQLITE3_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lsqlite3
+MODULE__SQLITE3_CFLAGS=-I/data/user/0/io.nightfall.artex/include -I$(srcdir)/Modules/_sqlite
+MODULE__SQLITE3_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lsqlite3
 MODULE__TKINTER_STATE=yes
-MODULE__TKINTER_CFLAGS=-I/data/user/0/com.artex.mobile/p/include -Wno-strict-prototypes -DWITH_APPINIT=1
-MODULE__TKINTER_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -ltk8.6 -ltkstub8.6 -ltcl8.6 -ltclstub8.6
+MODULE__TKINTER_CFLAGS=-I/data/user/0/io.nightfall.artex/include -Wno-strict-prototypes -DWITH_APPINIT=1
+MODULE__TKINTER_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -ltk8.6 -ltkstub8.6 -ltcl8.6 -ltclstub8.6
 MODULE__UUID_STATE=missing
 MODULE_ZLIB_STATE=yes
-MODULE_ZLIB_CFLAGS=-I/data/user/0/com.artex.mobile/p/include
-MODULE_ZLIB_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lz
+MODULE_ZLIB_CFLAGS=-I/data/user/0/io.nightfall.artex/include
+MODULE_ZLIB_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lz
 MODULE_BINASCII_STATE=yes
-MODULE_BINASCII_CFLAGS=-DUSE_ZLIB_CRC32 -I/data/user/0/com.artex.mobile/p/include
-MODULE_BINASCII_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lz
+MODULE_BINASCII_CFLAGS=-DUSE_ZLIB_CRC32 -I/data/user/0/io.nightfall.artex/include
+MODULE_BINASCII_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lz
 MODULE__BZ2_STATE=yes
 MODULE__BZ2_CFLAGS=
 MODULE__BZ2_LDFLAGS=-lbz2
 MODULE__LZMA_STATE=yes
-MODULE__LZMA_CFLAGS=-I/data/user/0/com.artex.mobile/p/include
-MODULE__LZMA_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -llzma
+MODULE__LZMA_CFLAGS=-I/data/user/0/io.nightfall.artex/include
+MODULE__LZMA_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -llzma
 MODULE__ZSTD_STATE=yes
-MODULE__ZSTD_CFLAGS=-I/data/user/0/com.artex.mobile/p/include
-MODULE__ZSTD_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -lzstd
+MODULE__ZSTD_CFLAGS=-I/data/user/0/io.nightfall.artex/include
+MODULE__ZSTD_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -lzstd
 MODULE__SSL_STATE=yes
-MODULE__SSL_CFLAGS=-I/data/user/0/com.artex.mobile/p/include
-MODULE__SSL_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib  -lssl -lcrypto
+MODULE__SSL_CFLAGS=-I/data/user/0/io.nightfall.artex/include
+MODULE__SSL_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib  -lssl -lcrypto
 MODULE__HASHLIB_STATE=yes
-MODULE__HASHLIB_CFLAGS=-I/data/user/0/com.artex.mobile/p/include
-MODULE__HASHLIB_LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib   -lcrypto
+MODULE__HASHLIB_CFLAGS=-I/data/user/0/io.nightfall.artex/include
+MODULE__HASHLIB_LDFLAGS=-L/data/user/0/io.nightfall.artex/lib   -lcrypto
 MODULE__TESTCAPI_STATE=yes
 MODULE__TESTCAPI_LDFLAGS=
 MODULE__TESTCLINIC_STATE=yes
@@ -408,7 +408,7 @@ EXEMODE=	755
 FILEMODE=	644
 
 # configure script arguments
-CONFIG_ARGS=	 '--disable-dependency-tracking' '--prefix=/data/user/0/com.artex.mobile/p' '--libdir=/data/user/0/com.artex.mobile/p/lib' '--includedir=/data/user/0/com.artex.mobile/p/include' '--sbindir=/data/user/0/com.artex.mobile/p/bin' '--disable-rpath' '--disable-rpath-hack' '--host=aarch64-linux-android' 'ac_cv_file__dev_ptmx=yes' 'ac_cv_file__dev_ptc=no' 'ac_cv_func_wcsftime=no' 'ac_cv_func_ftime=no' 'ac_cv_func_faccessat=no' '--build=x86_64-pc-linux-gnu' '--with-system-ffi' '--with-system-expat' '--without-ensurepip' 'ac_cv_func_link=no' 'ac_cv_func_linkat=no' 'ac_cv_buggy_getaddrinfo=no' '--enable-loadable-sqlite-extensions' 'ac_cv_little_endian_double=yes' 'ac_cv_posix_semaphores_enabled=yes' 'ac_cv_func_sem_open=yes' 'ac_cv_func_sem_timedwait=yes' 'ac_cv_func_sem_getvalue=yes' 'ac_cv_func_sem_unlink=yes' 'ac_cv_func_shm_open=yes' 'ac_cv_func_shm_unlink=yes' 'ac_cv_working_tzset=yes' '--with-build-python=python3.14' 'ac_cv_header_sys_xattr_h=no' 'ac_cv_func_getgrent=yes' 'ac_cv_func_fexecve=no' 'ac_cv_func_getlogin_r=no' 'ac_cv_func_getloadavg=no' 'ac_cv_func_sem_clockwait=no' 'ac_cv_func_preadv2=no' 'ac_cv_func_pwritev2=no' 'ac_cv_func_close_range=no' 'ac_cv_func_copy_file_range=no' '--disable-nls' '--enable-shared' '--enable-static' '--libexecdir=/data/user/0/com.artex.mobile/p/libexec' 'build_alias=x86_64-pc-linux-gnu' 'host_alias=aarch64-linux-android' 'PKG_CONFIG=/home/builder/.termux-build/_cache/android-r30-api-24-v0/bin/pkg-config' 'PKG_CONFIG_LIBDIR=/data/user/0/com.artex.mobile/p/lib/pkgconfig:/data/user/0/com.artex.mobile/p/share/pkgconfig' 'CC=aarch64-linux-android-clang' 'CFLAGS= -fstack-protector-strong -O3' 'LDFLAGS=-L/data/user/0/com.artex.mobile/p/lib -Wl,-rpath=/data/user/0/com.artex.mobile/p/lib -Wl,--enable-new-dtags  -Wl,-z,relro,-z,now -Wl,--no-as-needed,-landroid-support,--as-needed -L/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/lib -landroid-posix-semaphore' 'CPPFLAGS= -isystem/data/user/0/com.artex.mobile/p/include/c++/v1 -isystem/data/user/0/com.artex.mobile/p/include -I/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/include' 'CPP=aarch64-linux-android-cpp'
+CONFIG_ARGS=	 '--disable-dependency-tracking' '--prefix=/data/user/0/io.nightfall.artex' '--libdir=/data/user/0/io.nightfall.artex/lib' '--includedir=/data/user/0/io.nightfall.artex/include' '--sbindir=/data/user/0/io.nightfall.artex/bin' '--disable-rpath' '--disable-rpath-hack' '--host=aarch64-linux-android' 'ac_cv_file__dev_ptmx=yes' 'ac_cv_file__dev_ptc=no' 'ac_cv_func_wcsftime=no' 'ac_cv_func_ftime=no' 'ac_cv_func_faccessat=no' '--build=x86_64-pc-linux-gnu' '--with-system-ffi' '--with-system-expat' '--without-ensurepip' 'ac_cv_func_link=no' 'ac_cv_func_linkat=no' 'ac_cv_buggy_getaddrinfo=no' '--enable-loadable-sqlite-extensions' 'ac_cv_little_endian_double=yes' 'ac_cv_posix_semaphores_enabled=yes' 'ac_cv_func_sem_open=yes' 'ac_cv_func_sem_timedwait=yes' 'ac_cv_func_sem_getvalue=yes' 'ac_cv_func_sem_unlink=yes' 'ac_cv_func_shm_open=yes' 'ac_cv_func_shm_unlink=yes' 'ac_cv_working_tzset=yes' '--with-build-python=python3.14' 'ac_cv_header_sys_xattr_h=no' 'ac_cv_func_getgrent=yes' 'ac_cv_func_fexecve=no' 'ac_cv_func_getlogin_r=no' 'ac_cv_func_getloadavg=no' 'ac_cv_func_sem_clockwait=no' 'ac_cv_func_preadv2=no' 'ac_cv_func_pwritev2=no' 'ac_cv_func_close_range=no' 'ac_cv_func_copy_file_range=no' '--disable-nls' '--enable-shared' '--enable-static' '--libexecdir=/data/user/0/io.nightfall.artex/libexec' 'build_alias=x86_64-pc-linux-gnu' 'host_alias=aarch64-linux-android' 'PKG_CONFIG=/home/builder/.termux-build/_cache/android-r30-api-24-v0/bin/pkg-config' 'PKG_CONFIG_LIBDIR=/data/user/0/io.nightfall.artex/lib/pkgconfig:/data/user/0/io.nightfall.artex/share/pkgconfig' 'CC=aarch64-linux-android-clang' 'CFLAGS= -fstack-protector-strong -O3' 'LDFLAGS=-L/data/user/0/io.nightfall.artex/lib -Wl,-rpath=/data/user/0/io.nightfall.artex/lib -Wl,--enable-new-dtags  -Wl,-z,relro,-z,now -Wl,--no-as-needed,-landroid-support,--as-needed -L/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/lib -landroid-posix-semaphore' 'CPPFLAGS= -isystem/data/user/0/io.nightfall.artex/include/c++/v1 -isystem/data/user/0/io.nightfall.artex/include -I/home/builder/.termux-build/_cache/android-r30-api-24-v0/sysroot/usr/include' 'CPP=aarch64-linux-android-cpp'
 
 
 # Subdirectories with code

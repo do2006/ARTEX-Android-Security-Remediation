@@ -36,13 +36,13 @@ public class MainActivity extends Activity {
     private static final int REQ_SCAN = 2002;
 
     /** 桌面长按「扫描」快捷方式 */
-    private static final String ACTION_SCAN = "com.artex.mobile.action.SCAN";
+    private static final String ACTION_SCAN = "io.nightfall.artex.action.SCAN";
 
     /** 页面是否已加载完（扫码结果要等它就绪后再填） */
     private volatile boolean pageLoaded;
     /** 后端还没就绪时先存着，onReady 之后再填进新建任务 */
     private volatile String pendingShare;
-    /** 上次按返回键的时间，用于"再按一次退出"判定 */
+    /** 上次按返回键的时间，用于"Press Back again to exit"判定 */
     private long lastBackTime;
     private ArtExService svc;
     private FrameLayout root;
@@ -115,10 +115,10 @@ public class MainActivity extends Activity {
                     if (accept != null && accept.length == 1 && accept[0] != null && !accept[0].isEmpty()) {
                         intent.setType(accept[0]);
                     }
-                    startActivityForResult(Intent.createChooser(intent, "选择文件"), FILE_CHOOSER_REQ);
+                    startActivityForResult(Intent.createChooser(intent, "Select file"), FILE_CHOOSER_REQ);
                     return true;
                 } catch (Exception e) {
-                    Log.e(TAG, "文件选择器启动失败", e);
+                    Log.e(TAG, "Failed to open the file picker", e);
                     filePathCallback = null;
                     return false;
                 }
@@ -139,9 +139,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
-                Log.e(TAG, "资源错误 " + req.getUrl() + ": " + err.getDescription());
+                Log.e(TAG, "Resource error " + req.getUrl() + ": " + err.getDescription());
                 if (req.isForMainFrame()) {
-                    runOnUiThread(() -> console.log("[ERR] 页面加载失败 " + req.getUrl() + ": " + err.getDescription()));
+                    runOnUiThread(() -> console.log("[ERR] Page load failed " + req.getUrl() + ": " + err.getDescription()));
                 }
             }
 
@@ -295,10 +295,10 @@ public class MainActivity extends Activity {
             public void onReady() {
                 runOnUiThread(() -> {
                     console.complete();
-                    console.log("[LOCAL] 服务仅监听本机。");
+                    console.log("[LOCAL] The service listens on localhost only.");
                     // 通知只留两行：标题 ARTEX，正文 服务运行中。
                     // 访问地址仍打在控制台日志里，需要时能查到。
-                    Notifier.show(MainActivity.this, "ARTEX", "服务运行中");
+                    Notifier.show(MainActivity.this, "ARTEX", "Service is running");
 
                     console.setVisibility(View.GONE);
                     webView.loadUrl("http://127.0.0.1:" + PORT + "/login");
@@ -322,7 +322,7 @@ public class MainActivity extends Activity {
                     console.setVisibility(View.VISIBLE);
                     // 整页切成失败视图：错误摘要 + 可滚动完整日志 + 复制/重试
                     console.showFailure(msg, svc::getFullLog, MainActivity.this::restartBoot);
-                    Notifier.show(MainActivity.this, "ARTEX 启动失败", msg);
+                    Notifier.show(MainActivity.this, "ARTEX startup failed", msg);
                 });
             }
         });
@@ -344,7 +344,7 @@ public class MainActivity extends Activity {
             return;
         }
         lastBackTime = now;
-        Toast.makeText(this, "再按一次退出", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Press Back again to exit", Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -371,7 +371,7 @@ public class MainActivity extends Activity {
             // 从 onCreate 触发时窗口尚未就绪，延后一帧再拉起
             getWindow().getDecorView().post(() -> startActivityForResult(it, REQ_SCAN));
         } catch (Throwable t) {
-            Toast.makeText(this, "无法启动扫码：" + t.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Could not start QR scanning: " + t.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -393,7 +393,7 @@ public class MainActivity extends Activity {
             webView.postDelayed(() -> webView.evaluateJavascript(shareJs(url), value -> {
                 if (value == null || value.contains("nobtn") || value.contains("err")) {
                     copyToClipboard(url);
-                    Toast.makeText(this, "已复制目标地址，请粘贴到新建任务",
+                    Toast.makeText(this, "Target address copied. Paste it into a new task.",
                             Toast.LENGTH_LONG).show();
                 }
             }), 2500);
@@ -455,7 +455,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(MainActivity.this::beginBoot);
             }, "retry-stop").start();
         } catch (Throwable t) {
-            console.log("[FAIL] 重试异常: " + t);
+            console.log("[FAIL] Retry error: " + t);
         }
     }
 
@@ -467,7 +467,7 @@ public class MainActivity extends Activity {
                 String text = data.getStringExtra(ScanActivity.EXTRA_RESULT);
                 String url = extractTarget(text == null ? "" : text.trim());
                 if (url.isEmpty()) {
-                    Toast.makeText(this, "未识别到可用地址", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "No usable address found", Toast.LENGTH_SHORT).show();
                 } else if (pageLoaded) {
                     injectShare(url);
                 } else {
@@ -529,13 +529,13 @@ public class MainActivity extends Activity {
                 android.app.DownloadManager dm = (android.app.DownloadManager)
                         getSystemService(DOWNLOAD_SERVICE);
                 if (dm == null) {
-                    Toast.makeText(this, "系统下载器不可用", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "The system download manager is unavailable", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 dm.enqueue(req);
-                Toast.makeText(this, "开始下载：" + name, Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Starting download: " + name, Toast.LENGTH_SHORT).show();
             } catch (Throwable t) {
-                Toast.makeText(this, "下载失败：" + t.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Download failed: " + t.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }

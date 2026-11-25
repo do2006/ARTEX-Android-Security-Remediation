@@ -172,7 +172,7 @@ def _candidate_tempdir_list():
                          _os.path.expandvars(r'%SYSTEMROOT%\Temp'),
                          r'c:\temp', r'c:\tmp', r'\temp', r'\tmp' ])
     else:
-        dirlist.extend([ '/data/user/0/com.artex.mobile/p/tmp' ])
+        dirlist.extend([ '/data/user/0/io.nightfall.artex/tmp' ])
 
     # As a last resort, the current directory.
     try:

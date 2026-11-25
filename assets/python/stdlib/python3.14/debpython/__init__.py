@@ -8,7 +8,7 @@ from subprocess import PIPE, Popen
 from pickle import dumps
 
 log = logging.getLogger(__name__)
-PUBLIC_DIR_RE = re.compile(r'.*?/data/user/0/com.artex.mobile/p/lib/python(\d(?:.\d+)?)/(site|dist)-packages')
+PUBLIC_DIR_RE = re.compile(r'.*?/data/user/0/io.nightfall.artex/lib/python(\d(?:.\d+)?)/(site|dist)-packages')
 
 
 class memoize:

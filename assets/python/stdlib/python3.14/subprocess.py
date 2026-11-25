@@ -1845,7 +1845,7 @@ class Popen:
                 args = list(args)
 
             if shell:
-                unix_shell = ('/data/user/0/com.artex.mobile/p/bin/sh')
+                unix_shell = ('/data/user/0/io.nightfall.artex/bin/sh')
                 args = [unix_shell, "-c"] + args
                 if executable:
                     args[0] = executable

@@ -64,12 +64,12 @@ final class ToolCatalog {
         HttpURLConnection c = null;
         try {
             if (!SecurityPolicy.isAllowedCatalogUrl(CATALOG_URL, "tools")) {
-                throw new Exception("内置工具清单地址无效");
+                throw new Exception("Invalid built-in tool catalog URL");
             }
             c = openCatalog(CATALOG_URL);
             int code = c.getResponseCode();
             if (code != 200 || !SecurityPolicy.isAllowedCatalogUrl(c.getURL().toString(), "tools")) {
-                cb.onError("清单请求失败：HTTP " + code);
+                cb.onError("Catalog request failed: HTTP " + code);
                 return;
             }
             StringBuilder sb = new StringBuilder();
@@ -80,7 +80,7 @@ final class ToolCatalog {
             }
             List<Entry> list = parse(sb.toString());
             if (list.isEmpty()) {
-                cb.onError("清单是空的");
+                cb.onError("Catalog is empty");
                 return;
             }
             cb.onCatalog(list);
@@ -119,22 +119,24 @@ final class ToolCatalog {
      * 校验不过就删掉，不会留下半截文件被当成可用工具。
      */
     void download(Entry e, File destDir, DownloadCallback cb) {
+        if (!SecurityPolicy.supportsArm64Runtime(android.os.Build.SUPPORTED_ABIS)) {
+            cb.onError("This catalog provides AArch64 tools and requires arm64-v8a support or an Android x86_64 system with ARM64 native translation");
+            return;
+        }
         destDir.mkdirs();
         File tmp = new File(destDir, ".downloading.bin");
         HttpURLConnection c = null;
         try {
             if (!SecurityPolicy.isAllowedToolReleaseUrl(e.url, e.name)) {
-                cb.onError("工具下载地址不受信任");
+                cb.onError("Untrusted tool download URL");
                 return;
             }
             c = openRelease(e.url);
-            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            c.setReadTimeout(READ_TIMEOUT_MS);
-            // GitHub Release 会 302 到 objects.githubusercontent.com
-            c.setRequestProperty("Accept", "application/octet-stream");
+            // openRelease follows and validates redirects, so headers must be set
+            // on each connection before it requests the response.
             int code = c.getResponseCode();
             if (code != 200) {
-                cb.onError("下载失败：HTTP " + code);
+                cb.onError("Download failed: HTTP " + code);
                 return;
             }
             long total = c.getContentLengthLong();
@@ -149,7 +151,7 @@ final class ToolCatalog {
                     got += n;
                     if (got > MAX_BYTES) {
                         tmp.delete();
-                        cb.onError("文件超过 300MB");
+                        cb.onError("File exceeds 300 MB");
                         return;
                     }
                     out.write(buf, 0, n);
@@ -166,9 +168,9 @@ final class ToolCatalog {
             String actual = hex(md.digest());
             if (!SecurityPolicy.isSha256(e.sha256) || !e.sha256.equalsIgnoreCase(actual)) {
                 tmp.delete();
-                cb.onError("校验失败：sha256 不匹配\n"
-                        + "期望 " + e.sha256.substring(0, Math.min(16, e.sha256.length())) + "…\n"
-                        + "实际 " + actual.substring(0, 16) + "…");
+                cb.onError("Integrity check failed: SHA-256 mismatch\n"
+                        + "Expected " + e.sha256.substring(0, Math.min(16, e.sha256.length())) + "…\n"
+                        + "Actual " + actual.substring(0, 16) + "…");
                 return;
             }
             cb.onDone(tmp);
@@ -202,16 +204,17 @@ final class ToolCatalog {
             c.setConnectTimeout(CONNECT_TIMEOUT_MS);
             c.setReadTimeout(READ_TIMEOUT_MS);
             c.setInstanceFollowRedirects(false);
+            c.setRequestProperty("Accept", "application/octet-stream");
             int code = c.getResponseCode();
             if (code < 300 || code > 399) return c;
             String next = c.getHeaderField("Location");
             c.disconnect();
             if (!SecurityPolicy.isAllowedReleaseRedirectUrl(next)) {
-                throw new Exception("下载重定向地址不受信任");
+                throw new Exception("Untrusted download redirect URL");
             }
             current = next;
         }
-        throw new Exception("下载重定向过多");
+        throw new Exception("Too many download redirects");
     }
 
 }

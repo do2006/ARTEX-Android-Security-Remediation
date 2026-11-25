@@ -1,4 +1,4 @@
-#!/data/user/0/com.artex.mobile/p/bin/python3.14
+#!/data/user/0/io.nightfall.artex/bin/python3.14
 import sys
 from pip._internal.cli.main import cli
 if __name__ == '__main__':

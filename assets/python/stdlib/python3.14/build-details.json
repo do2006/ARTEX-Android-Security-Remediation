@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "base_prefix": "/data/user/0/com.artex.mobile/p",
-  "base_interpreter": "/data/user/0/com.artex.mobile/p/bin/python3.14",
+  "base_prefix": "/data/user/0/io.nightfall.artex",
+  "base_interpreter": "/data/user/0/io.nightfall.artex/bin/python3.14",
   "platform": "android-24-arm64_v8a",
   "language": {
     "version": "3.14",
@@ -46,13 +46,13 @@
     ]
   },
   "libpython": {
-    "dynamic": "/data/user/0/com.artex.mobile/p/lib/libpython3.14.so",
-    "dynamic_stableabi": "/data/user/0/com.artex.mobile/p/lib/libpython3.so",
+    "dynamic": "/data/user/0/io.nightfall.artex/lib/libpython3.14.so",
+    "dynamic_stableabi": "/data/user/0/io.nightfall.artex/lib/libpython3.so",
     "link_extensions": true,
-    "static": "/data/user/0/com.artex.mobile/p/lib/python3.14/config-3.14-aarch64-linux-android/libpython3.14.a"
+    "static": "/data/user/0/io.nightfall.artex/lib/python3.14/config-3.14-aarch64-linux-android/libpython3.14.a"
   },
   "c_api": {
-    "headers": "/data/user/0/com.artex.mobile/p/include/python3.14",
-    "pkgconfig_path": "/data/user/0/com.artex.mobile/p/lib/pkgconfig"
+    "headers": "/data/user/0/io.nightfall.artex/include/python3.14",
+    "pkgconfig_path": "/data/user/0/io.nightfall.artex/lib/pkgconfig"
   }
 }

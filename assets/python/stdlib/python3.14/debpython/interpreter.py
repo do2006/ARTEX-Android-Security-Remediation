@@ -171,16 +171,16 @@ class Interpreter:
         #if not version:
         #    version = Version(DEFAULT)
         if self.impl == 'pypy':
-            path = '/data/user/0/com.artex.mobile/p/lib/pypy/dist-packages/'
+            path = '/data/user/0/io.nightfall.artex/lib/pypy/dist-packages/'
         elif version << Version('2.6'):
-            path = "/data/user/0/com.artex.mobile/p/lib/python%s/site-packages/" % version
+            path = "/data/user/0/io.nightfall.artex/lib/python%s/site-packages/" % version
         elif version << Version('3.0'):
-            path = "/data/user/0/com.artex.mobile/p/lib/python%s/dist-packages/" % version
+            path = "/data/user/0/io.nightfall.artex/lib/python%s/dist-packages/" % version
         else:
-            path = '/data/user/0/com.artex.mobile/p/lib/python3.14/site-packages/'
+            path = '/data/user/0/io.nightfall.artex/lib/python3.14/site-packages/'
 
         if gdb:
-            path = "/data/user/0/com.artex.mobile/p/lib/debug%s" % path
+            path = "/data/user/0/io.nightfall.artex/lib/debug%s" % path
         if package:
             path = "debian/%s%s" % (package, path)
 

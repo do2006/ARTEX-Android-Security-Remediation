@@ -19,20 +19,20 @@ final class RestoreFiles {
     static String rollback(File pg, File pgOld, boolean pgMoved,
                            File artex, File artexOld, boolean artexMoved) {
         StringBuilder failures = new StringBuilder();
-        restoreOne("数据库", pg, pgOld, pgMoved, failures);
-        restoreOne("ARTEX 数据", artex, artexOld, artexMoved, failures);
+        restoreOne("database", pg, pgOld, pgMoved, failures);
+        restoreOne("ARTEX data", artex, artexOld, artexMoved, failures);
         return failures.toString();
     }
 
     private static void restoreOne(String label, File target, File previous, boolean moved,
                                    StringBuilder failures) {
         if (!moved) return;
-        if (!deleteRecursive(target)) append(failures, label + "临时数据无法删除");
-        if (!previous.exists() || !previous.renameTo(target)) append(failures, label + "旧数据无法恢复");
+        if (!deleteRecursive(target)) append(failures, label + " temporary data could not be deleted");
+        if (!previous.exists() || !previous.renameTo(target)) append(failures, label + " previous copy could not be restored");
     }
 
     private static void append(StringBuilder failures, String message) {
-        if (failures.length() > 0) failures.append("；");
+        if (failures.length() > 0) failures.append("; ");
         failures.append(message);
     }
 }

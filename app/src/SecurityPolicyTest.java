@@ -8,6 +8,17 @@ public final class SecurityPolicyTest {
         check(!SecurityPolicy.isSafeFileName("folder/tool"));
         check(SecurityPolicy.isSha256("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
         check(!SecurityPolicy.isSha256("not-a-digest"));
+        check(SecurityPolicy.supportsArm64Runtime(new String[]{"arm64-v8a", "armeabi-v7a"}));
+        check(SecurityPolicy.supportsArm64Runtime(new String[]{"x86_64", "arm64-v8a"}));
+        check(SecurityPolicy.supportsArm64Runtime(new String[]{"x86_64", "arm64-v8a", "armeabi-v7a"}));
+        check(!SecurityPolicy.supportsArm64Runtime(new String[0]));
+        check(!SecurityPolicy.supportsArm64Runtime(null));
+        check(SecurityPolicy.usesNativeArm64Runtime(new String[]{"arm64-v8a", "x86_64"}));
+        check(!SecurityPolicy.usesNativeArm64Runtime(new String[]{"x86_64", "arm64-v8a"}));
+        check(!SecurityPolicy.usesNativeArm64Runtime(null));
+        check(SecurityPolicy.translatedArm64PipOptions(new String[]{"arm64-v8a"}).length == 0);
+        check(SecurityPolicy.translatedArm64PipOptions(new String[]{"x86_64", "arm64-v8a"}).length == 8);
+        check(SecurityPolicy.translatedArm64PipOptions(new String[]{"x86_64"}).length == 0);
         check(SecurityPolicy.isAllowedCatalogUrl(SecurityPolicy.catalogUrl("tools"), "tools"));
         check(!SecurityPolicy.isAllowedCatalogUrl("https://raw.githubusercontent.com/Srysfu/artex-mobile-tools/main/tools.json", "tools"));
         check(SecurityPolicy.isAllowedToolReleaseUrl("https://github.com/Srysfu/artex-mobile-tools/releases/download/tools-v2/nuclei", "nuclei"));

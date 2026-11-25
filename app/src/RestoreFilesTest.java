@@ -19,8 +19,22 @@ public final class RestoreFilesTest {
             write(artex, "partial-artex");
             String failures = RestoreFiles.rollback(pg, pgOld, true, artex, artexOld, true);
             check(failures.isEmpty());
-            check(new File(pg, "data").exists());
-            check(new File(artex, "data").exists());
+            check("old-pg".equals(Files.readString(new File(pg, "data").toPath())));
+            check("old-artex".equals(Files.readString(new File(artex, "data").toPath())));
+
+            File failedRoot = new File(root, "rollback-failure");
+            File failedPg = new File(failedRoot, "pgdata");
+            File failedArtex = new File(failedRoot, "artex");
+            File failedPgOld = new File(failedRoot, "pgdata.old");
+            File missingArtexOld = new File(failedRoot, "artex.old");
+            write(failedPgOld, "old-pg-2");
+            write(failedPg, "partial-pg-2");
+            write(failedArtex, "partial-artex-2");
+            String rollbackFailures = RestoreFiles.rollback(failedPg, failedPgOld, true,
+                    failedArtex, missingArtexOld, true);
+            check(rollbackFailures.contains("ARTEX data previous copy could not be restored"));
+            check("old-pg-2".equals(Files.readString(new File(failedPg, "data").toPath())));
+            check(!failedArtex.exists());
         } finally {
             RestoreFiles.deleteRecursive(root);
         }

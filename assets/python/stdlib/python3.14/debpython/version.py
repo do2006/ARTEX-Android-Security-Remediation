@@ -252,10 +252,10 @@ def get_requested_versions(vrange=None, available=None):
 
     if available:
         versions = set(v for v in versions
-                       if exists("/data/user/0/com.artex.mobile/p/bin/python%d.%d" % v))
+                       if exists("/data/user/0/io.nightfall.artex/bin/python%d.%d" % v))
     elif available is False:
         versions = set(v for v in versions
-                       if not exists("/data/user/0/com.artex.mobile/p/bin/python%d.%d" % v))
+                       if not exists("/data/user/0/io.nightfall.artex/bin/python%d.%d" % v))
 
     return versions
 

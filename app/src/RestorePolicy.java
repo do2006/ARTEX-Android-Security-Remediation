@@ -25,13 +25,13 @@ final class RestorePolicy {
         private long expanded;
 
         void beginEntry() throws Exception {
-            if (++entries > MAX_ENTRIES) throw new Exception("备份文件数量超过限制");
+            if (++entries > MAX_ENTRIES) throw new Exception("Backup file count exceeds the limit");
         }
 
         void addBytes(long byteCount, long entryBytes) throws Exception {
-            if (entryBytes > MAX_ENTRY_BYTES) throw new Exception("备份单个文件超过限制");
+            if (entryBytes > MAX_ENTRY_BYTES) throw new Exception("Backup file exceeds the per-file size limit");
             expanded += byteCount;
-            if (expanded > MAX_EXPANDED_BYTES) throw new Exception("备份解压大小超过限制");
+            if (expanded > MAX_EXPANDED_BYTES) throw new Exception("Unpacked backup exceeds the size limit");
         }
 
         int entryCount() { return entries; }

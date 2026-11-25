@@ -11,8 +11,8 @@
         android:shortcutShortLabel="@string/shortcut_scan_short"
         android:shortcutLongLabel="@string/shortcut_scan_long">
         <intent
-            android:action="com.artex.mobile.action.SCAN"
-            android:targetPackage="com.artex.mobile"
+            android:action="io.nightfall.artex.action.SCAN"
+            android:targetPackage="io.nightfall.artex"
             android:targetClass="com.artex.mobile.MainActivity" />
     </shortcut>
 </shortcuts>

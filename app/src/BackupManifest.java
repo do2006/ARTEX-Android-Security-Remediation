@@ -17,7 +17,7 @@ final class BackupManifest {
     }
 
     static BackupManifest create(Map<String, String> hashes) throws Exception {
-        if (hashes == null || hashes.isEmpty()) throw new Exception("备份没有可校验的文件");
+        if (hashes == null || hashes.isEmpty()) throw new Exception("Backup has no files to verify");
         LinkedHashMap<String, String> copy = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : hashes.entrySet()) {
             addValidated(copy, entry.getKey(), entry.getValue());
@@ -27,27 +27,27 @@ final class BackupManifest {
 
     static BackupManifest parse(byte[] bytes) throws Exception {
         if (bytes == null || bytes.length == 0 || bytes.length > MAX_MANIFEST_BYTES) {
-            throw new Exception("备份 manifest 为空或超过限制");
+            throw new Exception("Backup manifest is empty or exceeds the size limit");
         }
         Object root = new JsonReader(new String(bytes, StandardCharsets.UTF_8)).read();
-        if (!(root instanceof Map)) throw new Exception("备份 manifest 格式无效");
+        if (!(root instanceof Map)) throw new Exception("Invalid backup manifest format");
         Map<?, ?> object = (Map<?, ?>) root;
         Object format = object.get("format");
         if (!(format instanceof Long) || ((Long) format).longValue() != FORMAT_VERSION) {
-            throw new Exception("不支持的备份 manifest 版本");
+            throw new Exception("Unsupported backup manifest version");
         }
         Object files = object.get("files");
         if (!(files instanceof List) || ((List<?>) files).isEmpty()) {
-            throw new Exception("备份 manifest 没有文件校验信息");
+            throw new Exception("Backup manifest has no file integrity data");
         }
         LinkedHashMap<String, String> hashes = new LinkedHashMap<>();
         for (Object item : (List<?>) files) {
-            if (!(item instanceof Map)) throw new Exception("备份 manifest 文件项无效");
+            if (!(item instanceof Map)) throw new Exception("Invalid backup manifest file entry");
             Map<?, ?> file = (Map<?, ?>) item;
             Object path = file.get("path");
             Object sha256 = file.get("sha256");
             if (!(path instanceof String) || !(sha256 instanceof String)) {
-                throw new Exception("备份 manifest 文件项缺少路径或哈希");
+                throw new Exception("Backup manifest entry is missing a path or hash");
             }
             addValidated(hashes, (String) path, (String) sha256);
         }
@@ -57,10 +57,10 @@ final class BackupManifest {
     private static void addValidated(Map<String, String> hashes, String path, String sha256)
             throws Exception {
         if (!RestorePolicy.isRestorableFile(path) || !SecurityPolicy.isSha256(sha256)) {
-            throw new Exception("备份 manifest 包含不允许的文件项");
+            throw new Exception("Backup manifest contains a disallowed file entry");
         }
         if (hashes.put(path, sha256.toLowerCase(java.util.Locale.US)) != null) {
-            throw new Exception("备份 manifest 包含重复文件项");
+            throw new Exception("Backup manifest contains a duplicate file entry");
         }
     }
 
@@ -114,19 +114,19 @@ final class BackupManifest {
         Object read() throws Exception {
             Object value = value();
             whitespace();
-            if (at != source.length()) throw error("存在多余内容");
+            if (at != source.length()) throw error("Unexpected trailing content");
             return value;
         }
 
         private Object value() throws Exception {
             whitespace();
-            if (at >= source.length()) throw error("意外结束");
+            if (at >= source.length()) throw error("Unexpected end of input");
             char c = source.charAt(at);
             if (c == '{') return object();
             if (c == '[') return array();
             if (c == '"') return string();
             if (c == '-' || (c >= '0' && c <= '9')) return number();
-            throw error("值无效");
+            throw error("Invalid value");
         }
 
         private Map<String, Object> object() throws Exception {
@@ -137,7 +137,7 @@ final class BackupManifest {
             while (true) {
                 whitespace();
                 String key = string();
-                if (map.containsKey(key)) throw error("重复键");
+                if (map.containsKey(key)) throw error("Duplicate key");
                 whitespace(); expect(':');
                 map.put(key, value());
                 whitespace();
@@ -165,9 +165,9 @@ final class BackupManifest {
             while (at < source.length()) {
                 char c = source.charAt(at++);
                 if (c == '"') return out.toString();
-                if (c < 0x20) throw error("字符串控制字符");
+                if (c < 0x20) throw error("Control character in string");
                 if (c != '\\') { out.append(c); continue; }
-                if (at >= source.length()) throw error("不完整转义");
+                if (at >= source.length()) throw error("Incomplete escape sequence");
                 char escaped = source.charAt(at++);
                 switch (escaped) {
                     case '"': out.append('"'); break;
@@ -179,15 +179,15 @@ final class BackupManifest {
                     case 'r': out.append('\r'); break;
                     case 't': out.append('\t'); break;
                     case 'u':
-                        if (at + 4 > source.length()) throw error("不完整 Unicode 转义");
+                        if (at + 4 > source.length()) throw error("Incomplete Unicode escape");
                         try { out.append((char) Integer.parseInt(source.substring(at, at + 4), 16)); }
-                        catch (NumberFormatException e) { throw error("Unicode 转义无效"); }
+                        catch (NumberFormatException e) { throw error("Invalid Unicode escape"); }
                         at += 4;
                         break;
-                    default: throw error("字符串转义无效");
+                    default: throw error("Invalid string escape");
                 }
             }
-            throw error("未结束字符串");
+            throw error("Unterminated string");
         }
 
         private Long number() throws Exception {
@@ -195,7 +195,7 @@ final class BackupManifest {
             if (source.charAt(at) == '-') at++;
             while (at < source.length() && Character.isDigit(source.charAt(at))) at++;
             try { return Long.valueOf(source.substring(start, at)); }
-            catch (NumberFormatException e) { throw error("数字无效"); }
+            catch (NumberFormatException e) { throw error("Invalid number"); }
         }
 
         private void whitespace() {
@@ -208,9 +208,9 @@ final class BackupManifest {
         }
 
         private void expect(char wanted) throws Exception {
-            if (!consume(wanted)) throw error("期待 '" + wanted + "'");
+            if (!consume(wanted)) throw error("Expected '" + wanted + "'");
         }
 
-        private Exception error(String message) { return new Exception("备份 manifest " + message); }
+        private Exception error(String message) { return new Exception("Backup manifest " + message); }
     }
 }

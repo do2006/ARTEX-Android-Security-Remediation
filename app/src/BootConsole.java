@@ -77,7 +77,7 @@ public class BootConsole extends LinearLayout {
         centerBox.addView(logo, lp);
 
         statusView = new TextView(ctx);
-        statusView.setText("正在启动…");
+        statusView.setText("Starting…");
         statusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         statusView.setGravity(Gravity.CENTER);
         centerBox.addView(statusView, new LinearLayout.LayoutParams(
@@ -209,18 +209,18 @@ public class BootConsole extends LinearLayout {
     public void progressFromStatus(String msg) {
         int p = -1;
         if (msg == null) return;
-        if (msg.contains("准备运行文件") || msg.contains("更新运行文件")) p = 3;
-        else if (msg.contains("释放 PG 库")) p = 8;
-        else if (msg.contains("释放 Python 标准库")) {
+        if (msg.contains("Preparing runtime files") || msg.contains("Updating runtime files")) p = 3;
+        else if (msg.contains("Extracting PostgreSQL libraries")) p = 8;
+        else if (msg.contains("Extracting Python standard library")) {
             int idx = lastNumber(msg);
             p = idx > 0 ? Math.min(45, 10 + idx / 25) : 30;
-        } else if (msg.contains("释放 PG 数据文件")) {
+        } else if (msg.contains("Extracting PostgreSQL data files")) {
             int idx = lastNumber(msg);
             p = idx > 0 ? Math.min(45, 10 + idx / 25) : 20;
-        } else if (msg.contains("释放") && msg.contains("库")) p = 15;
-        else if (msg.contains("释放工具")) p = 18;
-        else if (msg.contains("检查数据库") || msg.contains("初始化数据库")) p = 48;
-        else if (msg.contains("清理上次残留")) p = 46;
+        } else if (msg.contains("Extracting") && msg.contains("libraries")) p = 15;
+        else if (msg.contains("Extracting tools")) p = 18;
+        else if (msg.contains("Checking database") || msg.contains("Initializing database")) p = 48;
+        else if (msg.contains("Removing previous leftovers")) p = 46;
         else if (msg.contains("initdb")) {
             if (msg.contains("creating subdirectories")) p = 54;
             else if (msg.contains("max_connections")) p = 58;
@@ -230,14 +230,14 @@ public class BootConsole extends LinearLayout {
             else if (msg.contains("post-bootstrap")) p = 80;
             else if (msg.contains("syncing")) p = 86;
             else p = 55;
-        } else if (msg.contains("启动 PostgreSQL")) p = 88;
+        } else if (msg.contains("Starting PostgreSQL")) p = 88;
         // 「重新启动服务」本身就包含「启动服务」，后者是前者的子串，
         // 所以只需判断前者；写成两个 || 的后一个永远走不到。
-        else if (msg.contains("启动服务")) p = 92;
-        else if (msg.contains("服务启动失败")) p = 90;
-        else if (msg.contains("加载界面")) p = 99;
-        else if (msg.contains("准备界面")) p = 95;
-        else if (msg.contains("等待") || msg.contains("仍在启动")) p = 96;
+        else if (msg.contains("Starting service")) p = 92;
+        else if (msg.contains("Service startup failed")) p = 90;
+        else if (msg.contains("Loading interface")) p = 99;
+        else if (msg.contains("Preparing interface")) p = 95;
+        else if (msg.contains("Waiting") || msg.contains("still starting")) p = 96;
         if (p >= 0) setProgress(p);
     }
 
@@ -255,7 +255,7 @@ public class BootConsole extends LinearLayout {
     /** 启动成功：进度到 100，状态切成就绪 */
     public void complete() {
         setProgress(100);
-        ui.post(() -> statusView.setText("已就绪"));
+        ui.post(() -> statusView.setText("Ready"));
     }
 
     public void setLongPressCopy(final LogProvider provider) {
@@ -283,14 +283,14 @@ public class BootConsole extends LinearLayout {
             col.setPadding(dp(24), dp(48), dp(24), dp(24));
 
             TextView title = new TextView(getContext());
-            title.setText("启动失败");
+            title.setText("Startup failed");
             title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
             title.setTypeface(Typeface.DEFAULT_BOLD);
             title.setTextColor(red);
             col.addView(title);
 
             TextView err = new TextView(getContext());
-            err.setText(message == null ? "未知错误" : message);
+            err.setText(message == null ? "Unknown error" : message);
             err.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             err.setTextColor(dim);
             err.setPadding(0, dp(10), 0, dp(20));
@@ -321,12 +321,12 @@ public class BootConsole extends LinearLayout {
             btns.setGravity(Gravity.END);
 
             Button copy = new Button(getContext());
-            copy.setText("复制日志");
+            copy.setText("Copy log");
             copy.setAllCaps(false);
             copy.setOnClickListener(v -> copyLog(provider));
 
             Button retry = new Button(getContext());
-            retry.setText("重试");
+            retry.setText("Retry");
             retry.setAllCaps(false);
             if (onRetry != null) {
                 retry.setOnClickListener(v -> onRetry.run());
@@ -362,10 +362,10 @@ public class BootConsole extends LinearLayout {
         sv.addView(tv);
 
         new AlertDialog.Builder(getContext())
-                .setTitle("启动日志")
+                .setTitle("Startup log")
                 .setView(sv)
-                .setPositiveButton("复制全部", (d, w) -> copyLog(logProvider))
-                .setNegativeButton("关闭", null)
+                .setPositiveButton("Copy all", (d, w) -> copyLog(logProvider))
+                .setNegativeButton("Close", null)
                 .show();
     }
 
@@ -377,7 +377,7 @@ public class BootConsole extends LinearLayout {
             if (cm == null) return;
             cm.setPrimaryClip(ClipData.newPlainText("artex-log", full));
             Toast.makeText(getContext(),
-                    "已复制 " + full.length() + " 字", Toast.LENGTH_SHORT).show();
+                    "Copied " + full.length() + " characters", Toast.LENGTH_SHORT).show();
         } catch (Throwable ignored) {}
     }
 

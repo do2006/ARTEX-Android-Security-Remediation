@@ -70,12 +70,12 @@ final class SkillCatalog {
         HttpURLConnection c = null;
         try {
             if (!SecurityPolicy.isAllowedCatalogUrl(CATALOG_URL, "skills")) {
-                throw new Exception("内置技能清单地址无效");
+                throw new Exception("Invalid built-in skill catalog URL");
             }
             c = openCatalog(CATALOG_URL);
             int code = c.getResponseCode();
             if (code != 200 || !SecurityPolicy.isAllowedCatalogUrl(c.getURL().toString(), "skills")) {
-                cb.onError("清单请求失败：HTTP " + code);
+                cb.onError("Catalog request failed: HTTP " + code);
                 return;
             }
             StringBuilder sb = new StringBuilder();
@@ -86,7 +86,7 @@ final class SkillCatalog {
             }
             List<Entry> list = parse(sb.toString());
             if (list.isEmpty()) {
-                cb.onError("清单是空的");
+                cb.onError("Catalog is empty");
                 return;
             }
             cb.onCatalog(list);
@@ -125,17 +125,17 @@ final class SkillCatalog {
     void install(Entry e, boolean overwrite, InstallCallback cb) {
         File tmp = null;
         try {
-            cb.onProgress("下载 " + e.name + "…");
+            cb.onProgress("Downloading " + e.name + "…");
             tmp = new File(ctx.getCacheDir(), ".skill-" + e.name + ".zip");
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             if (!SecurityPolicy.isAllowedSkillReleaseUrl(e.url, e.name)) {
-                cb.onError("技能下载地址不受信任");
+                cb.onError("Untrusted skill download URL");
                 return;
             }
             HttpURLConnection c = openRelease(e.url);
             int code = c.getResponseCode();
             if (code != 200) {
-                cb.onError("下载失败：HTTP " + code);
+                cb.onError("Download failed: HTTP " + code);
                 return;
             }
             long total = 0;
@@ -146,7 +146,7 @@ final class SkillCatalog {
                 while ((n = in.read(buf)) > 0) {
                     total += n;
                     if (total > MAX_BYTES) {
-                        cb.onError("skill 包超过 20MB");
+                        cb.onError("Skill package exceeds 20 MB");
                         return;
                     }
                     md.update(buf, 0, n);
@@ -155,13 +155,13 @@ final class SkillCatalog {
             }
             String actual = hex(md.digest());
             if (!SecurityPolicy.isSha256(e.sha256) || !e.sha256.equalsIgnoreCase(actual)) {
-                cb.onError("校验失败：sha256 不匹配");
+                cb.onError("Integrity check failed: SHA-256 mismatch");
                 return;
             }
-            cb.onProgress("上传到后端…");
+            cb.onProgress("Uploading to the backend…");
             String resp = upload(tmp, e.name, overwrite);
             if (resp == null) {
-                cb.onError("上传失败");
+                cb.onError("Upload failed");
                 return;
             }
             cb.onDone(e.name);
@@ -211,7 +211,7 @@ final class SkillCatalog {
                 JSONObject o = new JSONObject(body);
                 if (o.has("error")) msg = o.optString("error");
             } catch (Throwable ignored) {}
-            throw new Exception("后端拒绝（HTTP " + code + "）：" + msg);
+            throw new Exception("Backend rejected the request (HTTP " + code + "): " + msg);
         }
         return body;
     }

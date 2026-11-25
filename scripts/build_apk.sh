@@ -15,10 +15,11 @@ set -e
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SDK="${ANDROID_SDK:-/opt/android-sdk}"
+PYTHON="${PYTHON:-python3}"
 BT="$SDK/build-tools/36.0.0"
 PLATFORM="$SDK/platforms/android-34/android.jar"
 WORK="${WORK:-/tmp/artex-build}"
-OUT="${1:-$REPO/dist/ARTEX-Mobile.apk}"
+OUT="${1:-$REPO/dist/NightFall-Artex.apk}"
 ASSETS="$REPO/assets"
 KEYSTORE="${ARTEX_KEYSTORE:-$REPO/keys/artex.keystore}"
 KS_PASS="${ARTEX_KS_PASS:?Set ARTEX_KS_PASS to the release keystore password}"
@@ -56,17 +57,31 @@ $AAPT package -f -M "$MANIFEST" -S "$RES" -I "$PLATFORM" -F "$WORK/base-slim.apk
 echo "[2/5] 生成 R.java 并编译 dex"
 rm -rf "$WORK/rgen" "$WORK/classes" "$WORK/dex"
 mkdir -p "$WORK/rgen" "$WORK/classes" "$WORK/dex"
-$AAPT package -f -m -J "$WORK/rgen" -M "$MANIFEST" -S "$RES" -I "$PLATFORM"
+$AAPT package -f -m -J "$WORK/rgen" --custom-package com.artex.mobile -M "$MANIFEST" -S "$RES" -I "$PLATFORM"
 # zxing-core.jar 供 ScanActivity 解二维码（桌面长按 → 扫描）
 ZXING="$REPO/libs/zxing-core.jar"
 [ -f "$ZXING" ] || { echo "错误：缺少 $ZXING（扫码功能依赖）" >&2; exit 1; }
-javac -source 11 -target 11 -classpath "$PLATFORM:$ZXING" \
+if command -v cygpath >/dev/null 2>&1; then
+  JAVACP="$(cygpath -m "$PLATFORM");$(cygpath -m "$ZXING")"
+else
+  JAVACP="$PLATFORM:$ZXING"
+fi
+javac -source 11 -target 11 -classpath "$JAVACP" \
   -d "$WORK/classes" "$WORK/rgen/com/artex/mobile/R.java" "$SRC"/*.java
-"$BT/d8" --release --lib "$PLATFORM" --min-api 24 \
-  --output "$WORK/dex" "$WORK/classes/com/artex/mobile"/*.class "$ZXING"
+if [ -x "$BT/d8" ]; then
+  "$BT/d8" --release --lib "$PLATFORM" --min-api 24 \
+    --output "$WORK/dex" "$WORK/classes/com/artex/mobile"/*.class "$ZXING"
+else
+  # Windows SDK packages expose d8.bat rather than a Unix launcher. Invoke the
+  # same bundled D8 entry point through its JAR so Git Bash can run the build.
+  [ -f "$BT/lib/d8.jar" ] || { echo "错误：缺少 $BT/d8 和 $BT/lib/d8.jar" >&2; exit 1; }
+  java -Xmx1024M -Xss1m -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
+    --release --lib "$PLATFORM" --min-api 24 \
+    --output "$WORK/dex" "$WORK/classes/com/artex/mobile"/*.class "$ZXING"
+fi
 
 echo "[3/5] 组装 APK（aapt 产物 + assets + dex）"
-WORK="$WORK" ASSETS="$ASSETS" python3 - << 'PY'
+PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}" WORK="$WORK" ASSETS="$ASSETS" "$PYTHON" - << 'PY'
 import os, zipfile
 work = os.environ['WORK']
 assets = os.environ['ASSETS']
@@ -86,7 +101,7 @@ print('  组装完成 %.1f MB' % (os.path.getsize(os.path.join(work, 'full.apk')
 PY
 
 echo "[3.5/5] 修复图标 PNG 模式（aapt 会把 RGBA 转成 P 调色板，Android 通知图标会拒绝）"
-WORK="$WORK" RES="$RES" python3 - << 'PY'
+PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}" WORK="$WORK" RES="$RES" "$PYTHON" - << 'PY'
 import os, zipfile
 work, res = os.environ['WORK'], os.environ['RES']
 targets = {}

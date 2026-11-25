@@ -1,111 +1,75 @@
 <div align="center">
 
-# ARTEX Android
+# NightFall Artex for Android
 
-**把 ARTEX 装进手机。后端、数据库、Python 全在 APK 里；应用服务仅监听本机。**
+**A local Android wrapper for ARTEX. The backend and database run on-device and listen only on loopback.**
 
-[![Repository](https://img.shields.io/badge/GitHub-do2006%2FARTEX--Android--Security--Remediation-181717?style=flat-square&logo=github)](https://github.com/do2006/ARTEX-Android-Security-Remediation)
-[![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#装)
-[![Security](https://img.shields.io/badge/security-hardened-22C55E?style=flat-square)](docs/SECURITY_REMEDIATION.md)
-[![License](https://img.shields.io/badge/license-MIT-4A5568?style=flat-square)](#)
+[![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#requirements)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.webp">
-  <img src="docs/images/banner-light.webp" alt="ARTEX Android 界面" width="100%">
-</picture>
+<img src="docs/images/banner-light.webp" alt="NightFall Artex for Android" width="100%">
 
 </div>
 
-## 它是什么
+## What it is
 
-ARTEX 是一个 AI 自主渗透测试系统。原版跑在服务器上，要装 Docker、配数据库、开端口。
+ARTEX is an AI-assisted security testing platform. This Android wrapper packages its backend, PostgreSQL, CPython, and shell runtime into an app. It does not require Docker or a separate server for its local service.
 
-这个项目把整摞东西塞进了一个 APK：
+The service binds to `127.0.0.1:8787`; the app's WebView is the client. Network access is needed to download catalog tools and skills. Python tools are packaged as a hash-locked offline wheelhouse and are installed only after the user confirms in the app.
 
+## Project status
+
+This repository is a security-hardening work branch, not a certified release. Source-level Java regression checks pass. An x86_64 emulator can run the translated ARM64 CPython runtime and install the hash-locked Python wheels, but feature validation found failures in native Python extensions: NetExec (`nxc`) fails while importing `netifaces`, and `pypykatz` cannot load the OpenSSL legacy provider. Therefore the four Python tools are **not certified functional on x86_64 translation**. Their behavior on a native ARM64 Android phone still needs verification.
+
+The current changes have not been built into a release APK. Do not treat a test-signed APK as a NightFall release. No ARM64 runtime has completed end-to-end validation. The local ARM64 AVD cannot boot on this Intel host, so use a native ARM64 device or a genuine ARM virtual device (for example, Firebase Test Lab) for that check. The bundled backend/PostgreSQL assets also have provenance limitations. See [security and platform limitations](docs/SECURITY_REMEDIATION.md) and the [runtime validation record](docs/PYTHON_TOOL_WHEELHOUSE.md).
+
+## Requirements
+
+- Android 8.0 or newer.
+- ARM64 (`arm64-v8a`) is the intended runtime. x86_64 emulators may run some ARM64 components through Android's translation layer, but the Python tool features are not verified there and currently have known failures.
+- Allow at least 250 MB for initial extraction and database setup. Python tool installation needs additional temporary storage; see the [wheelhouse guide](docs/PYTHON_TOOL_WHEELHOUSE.md).
+- Internet access is needed for optional catalog downloads. The bundled Python wheelhouse installs offline.
+
+## Setup
+
+There is no verified public release APK yet. To build from source, follow [docs/BUILD.md](docs/BUILD.md). Read [docs/USAGE.md](docs/USAGE.md) for first launch, installation, backups, and troubleshooting. Only install APKs signed by a publisher you trust; Android will not allow an update signed by a different key over an existing installation.
+
+## Tools
+
+Standalone tools are downloaded on demand from a pinned catalog. Downloads are restricted to the reviewed GitHub release route and HTTPS port 443, redirects are checked, and each payload must match its catalog SHA-256. The separate catalog currently lists 32 tools:
+
+```text
+Asset discovery: subfinder, shuffledns, puredns, alterx, asnmap, cloudlist,
+                 cdncheck, uncover, gau
+Probing:         httpx, dnsx, tlsx, naabu
+Content finding: katana, ffuf, gobuster
+Vulnerability:   nuclei, afrog, dalfox, gitleaks, interactsh-client
+Tunneling:       gost, npc, chisel, suo5, frp-frpc, frp-frps,
+                 ligolo-agent, ligolo-proxy
+Utilities:       fscan, gogo, notify
 ```
-┌─────────────────────────────────────────┐
-│  ARTEX 后端（Go 静态二进制，PIE）        │
-│  PostgreSQL 18.6                         │
-│  Python 3.14  +  impacket / pypykatz     │
-│  bash  +  readline / ncurses / iconv     │
-└─────────────────────────────────────────┘
-              ↓ 全部跑在手机里
-        WebView 打开 127.0.0.1:8787
-```
 
-没有服务器或容器。核心服务可离线启动；按需下载工具和 Skill 时需要网络。
+Impacket, NetExec (`nxc`), pypykatz, and LaZagne are provided in the bundled offline Python wheelhouse. The user starts installation from the Tools panel; the app verifies the lock and installs into a staging directory. Package installation alone does not prove all commands, protocols, or features work on a device. Platform constraints are described in the [wheelhouse guide](docs/PYTHON_TOOL_WHEELHOUSE.md).
 
-## 先看这里
+## Using the app
 
-这是一个安全加固后的维护仓库，默认分支为 `security-hardening-20261123`。先阅读：
+- Swipe left with two fingers to open backup, restore, tool, and skill controls.
+- Swipe right with two fingers to open the ARTEX web sidebar.
+- The Android Back button navigates the WebView first, then exits the app.
+- The service is intentionally inaccessible from other devices on the LAN.
 
-- [安装与日常使用](docs/USAGE.md)
-- [从源码构建 APK](docs/BUILD.md)
-- [安全边界与已知限制](docs/SECURITY_REMEDIATION.md)
-- [可复现构建输入清单](docs/REPRODUCIBLE_INPUTS.md)
+## Documentation
 
-当前提交已通过 Java 主机回归测试、Android API 源码编译和静态配置检查；**尚未在真实 Android 设备上构建、安装或运行预编译后端**。请在受控设备上完成自己的发布前验证，不要把它当作已完成运行时安全认证。
+- [Installation and usage](docs/USAGE.md)
+- [Build and signing setup](docs/BUILD.md)
+- [Security remediation and limitations](docs/SECURITY_REMEDIATION.md)
+- [Python tool wheelhouse](docs/PYTHON_TOOL_WHEELHOUSE.md)
+- [Reproducible inputs and provenance](docs/REPRODUCIBLE_INPUTS.md)
+- [Android adaptation notes](docs/ADAPTATION.md)
 
 ## Responsible use
 
-ARTEX Android is maintained by NightFall Technologies for legitimate security research, assessment, and administration. It is provided as-is and users operate it at their own discretion and responsibility. Use it only on systems, applications, accounts, and networks you own or have explicit permission to assess. NightFall Technologies does not guarantee fitness for a particular purpose and does not accept responsibility for unauthorized or unlawful use.
+NightFall Artex is intended for authorized security assessment and lab use. Use it only against systems and data you are authorized to test, and follow applicable laws and engagement rules. The app does not grant privileges beyond Android's app sandbox.
 
-## 装
+## Upstream
 
-目前请从本仓库源码构建自己的已签名 APK，具体步骤在 [构建指南](docs/BUILD.md)。发布者提供经过设备验证的 APK 后，才应在本仓库的 Releases 页面下载。
-
-| | |
-|---|---|
-| **系统** | Android 8.0+ |
-| **首次启动** | 1-2 分钟（初始化 PostgreSQL） |
-| **体积** | APK 60 MB，首次启动后约 250 MB |
-| **工具** | 不放 APK 里，面板里按需下载 |
-| **网络访问** | 后端只监听本机 `127.0.0.1:8787`，不提供局域网访问 |
-
-## 用
-
-| 手势 | 作用 |
-|---|---|
-| **双指左滑** | 打开右侧面板 —— 备份恢复 · 工具管理 · Skill 管理 |
-| **双指右滑** | 打开网页侧栏 —— 任务、资产、发现、报告 |
-| **返回键** | 先网页后退，退到底再按才退出 APP |
-| **电脑访问** | 不支持；服务仅限手机本机 WebView |
-
-完整说明见 **[docs/USAGE.md](docs/USAGE.md)**。
-
-## 工具
-
-32 个工具放在独立仓库，APK 里一个都没有 —— 需要哪个下哪个。清单固定到应用内审查过的不可变提交，下载要求精确的 GitHub Release 路径、HTTPS 443 和 SHA-256 校验。
-
-```
-资产测绘  subfinder  shuffledns  puredns  alterx  asnmap  cloudlist
-          cdncheck  uncover  gau
-探测指纹  httpx  dnsx  tlsx  naabu
-内容发现  katana  ffuf  gobuster
-漏洞扫描  nuclei  afrog  dalfox  gitleaks  interactsh-client
-隧道穿透  gost  npc  chisel  suo5  frp  ligolo
-工具箱    fscan  gogo
-其他      notify
-```
-
-这样 APK 从 154 MB 降到 60 MB，工具也能独立更新。
-
-## 改
-
-| 想做什么 | 看哪里 |
-|---|---|
-| 自己构建并签名一个 APK | [docs/BUILD.md](docs/BUILD.md) |
-| 安装、备份和工具使用 | [docs/USAGE.md](docs/USAGE.md) |
-| 安全边界和限制 | [docs/SECURITY_REMEDIATION.md](docs/SECURITY_REMEDIATION.md) |
-| 壳对后端做了哪些适配 | [docs/ADAPTATION.md](docs/ADAPTATION.md) |
-
-> 壳里做了不少不显然的事：Android 没有 `resolv.conf`，所以 DNS 要自己注入；
-> PostgreSQL 二进制硬编码了 Termux 路径，靠 31 字符等长替换绕过去；
-> Android 10 起禁止执行私有目录二进制，所以 targetSdk 必须停在 27。
-> 这些都在 [ADAPTATION.md](docs/ADAPTATION.md) 里。
-
-## 上游
-
-[RuoJi6/ARTEX](https://github.com/RuoJi6/ARTEX) · 本仓库对应提交 `a05a886`
-
-<div align="center"><sub>ARTEX 后端与前端版权归上游作者所有</sub></div>
+The Android wrapper is based on [RuoJi6/ARTEX](https://github.com/RuoJi6/ARTEX). ARTEX backend and frontend copyrights remain with their respective upstream authors.

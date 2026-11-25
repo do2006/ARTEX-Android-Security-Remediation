@@ -18,7 +18,7 @@ pardir = '..'
 extsep = '.'
 sep = '/'
 pathsep = ':'
-defpath = '/data/user/0/com.artex.mobile/p/bin'
+defpath = '/data/user/0/io.nightfall.artex/bin'
 altsep = None
 devnull = '/dev/null'
 

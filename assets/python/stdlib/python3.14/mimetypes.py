@@ -58,7 +58,7 @@ else:
         "/usr/local/lib/netscape/mime.types",
         "/usr/local/etc/httpd/conf/mime.types",     # Apache 1.2
         "/usr/local/etc/mime.types",                # Apache 1.3
-        "/data/user/0/com.artex.mobile/p/etc/mime.types",           # Termux
+        "/data/user/0/io.nightfall.artex/etc/mime.types",           # Termux
         ]
 
 inited = False

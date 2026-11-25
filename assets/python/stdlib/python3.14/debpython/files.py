@@ -49,15 +49,15 @@ def from_package(package_name, extensions=('.py',)):
     env = environ.copy()
     env["LC_ALL"] = "C.UTF-8"
     env["LD_PRELOAD"] = ""
-    process = Popen(['/data/user/0/com.artex.mobile/p/bin/bash', '-c',
-        'source /data/user/0/com.artex.mobile/p/bin/termux-setup-package-manager && echo ${TERMUX_APP_PACKAGE_MANAGER}'],
+    process = Popen(['/data/user/0/io.nightfall.artex/bin/bash', '-c',
+        'source /data/user/0/io.nightfall.artex/bin/termux-setup-package-manager && echo ${TERMUX_APP_PACKAGE_MANAGER}'],
         stdout=PIPE)
     termux_app_package_manager = process.communicate()[0].decode()[0:-1]
     if termux_app_package_manager == "apt":
-        package_manager = "/data/user/0/com.artex.mobile/p/bin/dpkg"
+        package_manager = "/data/user/0/io.nightfall.artex/bin/dpkg"
         package_manager_list_argument = "-L"
     elif termux_app_package_manager == "pacman":
-        package_manager = "/data/user/0/com.artex.mobile/p/bin/pacman"
+        package_manager = "/data/user/0/io.nightfall.artex/bin/pacman"
         package_manager_list_argument = "-Qql"
     else:
         raise Exception(f"cannot determine system package manager ({termux_app_package_manager})!")

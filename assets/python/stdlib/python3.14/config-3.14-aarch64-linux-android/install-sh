@@ -1,4 +1,4 @@
-#!/data/user/0/com.artex.mobile/p/bin/sh
+#!/data/user/0/io.nightfall.artex/bin/sh
 # install - install a program, script, or datafile
 
 scriptversion=2023-11-23.18; # UTC

@@ -20,7 +20,7 @@ public class ArtExService {
     private static final int PORT = 8787;
     private static final int PG_PORT = 5432;
     // 每次改动 assets 内容（二进制/库/数据）就 +1，触发强制覆盖重新释放
-    private static final int ASSETS_VERSION = 8;
+    private static final int ASSETS_VERSION = 11;
 
     public interface StatusListener {
         void onStatus(String msg);
@@ -77,16 +77,20 @@ public class ArtExService {
         sActive = this;
         this.appDir = ctx.getFilesDir();
         this.dataDir = new File(appDir, "artex");
-        // PG 硬编码路径 /data/user/0/<pkg>/p（不含 files），故放在 data 目录下
-        this.pgDir = new File(appDir.getParentFile(), "p");
+        // PG binaries use the package data root directly so the full branded
+        // application ID stays within the fixed-length Termux path slot.
+        this.pgDir = appDir.getParentFile();
         this.pgLib = new File(pgDir, "lib");
         this.pgShare = new File(pgDir, "share");
         this.pgBin = pgDir;
         this.pgData = new File(appDir, "pgdata");
         this.tmpDir = new File(appDir, "tmp");
-        this.miscLib = new File(pgDir, "lib-misc");
-        // 少了 files 这一层——之前写成 appDir/p/py 会让 encodings 永远找不到
+        // Python's compiled prefix uses this relocated package-root directory.
         this.pyHome = new File(pgDir, "py");
+        // ARM64 Python and Bash payloads use this exact runtime search path.
+        // Keeping their libraries at /py lets x86_64 Android's ARM translator
+        // resolve them without exporting ARM64 .so paths to the x86 host runner.
+        this.miscLib = pyHome;
     }
 
     /**
@@ -145,20 +149,24 @@ public class ArtExService {
 
     private void boot(StatusListener l) {
         try {
-            status(l, "准备运行文件…");
+            status(l, "Preparing runtime files…");
             ensureExtracted(l);
-            status(l, "检查数据库…");
+            status(l, "Checking database…");
             initDbIfNeeded(l);
-            status(l, "启动 PostgreSQL…");
+            status(l, "Starting PostgreSQL…");
             startPostgres(l);
             // 自检和 Python 自装都放后台：diagnoseTools 要对 5 个工具各跑一次
             // -h 探活（每个最多等 3 秒）+ bash 再等 5 秒，最坏情况干等 20 秒，
             // 压在启动主链路上等于每次开机都慢半拍。它们只写日志，不影响启动。
-            runInBackground(this::diagnoseTools, "tools-diag");
-            installPyTools();
-            status(l, "启动服务…");
+            if (usesArm64Runtime()) {
+                runInBackground(this::diagnoseTools, "tools-diag");
+            } else {
+                logLine("[tools] Skipping ARM64 runtime checks on this "
+                        + Build.SUPPORTED_ABIS[0] + " emulator");
+            }
+            status(l, "Starting service…");
             startBackend(l);
-            status(l, "准备界面…");
+            status(l, "Preparing interface…");
             waitForUi(l);
         } catch (Exception e) {
             Log.e(TAG, "boot failed", e);
@@ -178,9 +186,9 @@ public class ArtExService {
 
     public String getFullLog() {
         synchronized (fullLog) {
-            return "== ARTEX 启动日志 ==\n" + fullLog
-                    + "\n== PostgreSQL 输出 ==\n" + pgLog
-                    + "\n== 后端输出 ==\n" + beLog;
+            return "== ARTEX startup log ==\n" + fullLog
+                    + "\n== PostgreSQL output ==\n" + pgLog
+                    + "\n== Backend output ==\n" + beLog;
         }
     }
 
@@ -200,12 +208,12 @@ public class ArtExService {
             } catch (Exception ignored) {}
         }
         boolean force = (cur != ASSETS_VERSION);
-        if (force) Log.i(TAG, "assets 版本 " + cur + " -> " + ASSETS_VERSION + "，强制重新释放");
+        if (force) Log.i(TAG, "assets version " + cur + " -> " + ASSETS_VERSION + "; forcing re-extraction");
 
         // 每次释放都从 0 开始计数：ensureExtracted 在每次 boot() 都会走，
         // 不清零的话重试/恢复后进度会从上次的数字接着涨（1020、1040…）
         extractCount = 0;
-        status(l, force ? "更新运行文件（覆盖旧版）…" : "释放运行文件…");
+        status(l, force ? "Updating runtime files (replace old versions)…" : "Extracting runtime files…");
         extractAsset("backend/artex", new File(dataDir, "artex"), force);
         extractAsset("backend/config.json", new File(dataDir, "config.json"), force);
         String[] skills = {
@@ -218,19 +226,19 @@ public class ArtExService {
         extractAsset("pg/postgres", new File(pgDir, "postgres"), force);
         extractAsset("pg/initdb", new File(pgDir, "initdb"), force);
         extractAsset("pg/psql", new File(pgDir, "psql"), force);
-        extractAllAssets("pg/lib/", pgLib, l, "释放 PG 库", force);
-        extractAllAssets("pg/share/", pgShare, l, "释放 PG 数据文件", force);
+        extractAllAssets("pg/lib/", pgLib, l, "Extracting PostgreSQL libraries", force);
+        extractAllAssets("pg/share/", pgShare, l, "Extracting PostgreSQL data files", force);
 
         // bash：后端用 shell 类型工具执行命令，没有它工具全调不动
-        extractAllAssets("bash/lib/", miscLib, l, "释放 shell 库", force);
+        extractAllAssets("bash/lib/", miscLib, l, "Extracting shell libraries", force);
         extractAsset("bash/bin/bash", new File(pgBin, "bash"), force);
 
         // Python：工具链里 impacket/pypykatz/laZagne 靠它跑，pip 也靠它
-        extractAllAssets("python/lib/", miscLib, l, "释放 Python 库", force);
+        extractAllAssets("python/lib/", miscLib, l, "Extracting Python libraries", force);
         miscLib.mkdirs();
         pyHome.mkdirs();
         extractAllAssets("python/stdlib/python3.14/", new File(pyHome, "lib/python3.14"),
-                l, "释放 Python 标准库", force);
+                l, "Extracting Python standard library", force);
         extractAsset("python/bin/python3.14", new File(pgBin, "python3"), force);
         extractAsset("python/bin/pip", new File(pgBin, "pip"), force);
         extractAsset("python/pip-patched.tar.gz", new File(pgDir, "pip-patched.tar.gz"), force);
@@ -245,164 +253,9 @@ public class ArtExService {
         }
     }
 
-    /**
-     * Python 工具自装（后台线程，首次较久）。
-     *
-     * 顺序有讲究：
-     *  1) 用 python -m tarfile 解压 pip 补丁包覆盖 site-packages/pip
-     *     （补丁版支持 SOCKS 代理和 android 平台 tag；用 python 解压，
-     *      不依赖 pip，pip 本身坏了也能修）
-     *  2) 预打包 wheel 直接按 zip 解到 data/tools/py-socks —— 这是 import
-     *     路径，只暴露纯 Python 包，venv 里的东西不进 PYTHONPATH，
-     *     避免覆盖 pip 自带依赖
-     *  3) pip install --target 到 venv 装 impacket / pypykatz / laZagne
-     *     （与原项目一致：只装这三个）
-     *  4) 建符号链接让工具能按名字直接调用
-     */
-    private void installPyTools() {
-        Thread t = new Thread(() -> {
-            File venv = new File(dataDir, "data/tools/py-venv");
-            File toolsDir = new File(dataDir, "data/tools");
-            String[] entries = {"impacket", "nxc", "pypykatz", "laZagne"};
-            int missing = 0;
-            for (String e : entries) if (!new File(toolsDir, e).exists()) missing++;
-            if (missing == 0) return;
-            logLine("[ARTEX] Python 工具缺失 " + missing + " 项；已禁用未锁定的联网安装。请使用经审核、哈希锁定的离线 wheelhouse。");
-            return;
-            /*
-            try {
-                File pyBin = new File(pgBin, "python3");
-                if (!pyBin.exists()) {
-                    logLine("[ARTEX] python3 未释放，跳过工具自装");
-                    return;
-                }
-                File home = pyHome;
-                File pipPatchTar = new File(pgDir, "pip-patched.tar.gz");
-                File sitePkgs = new File(pyHome, "lib/python3.14/site-packages");
-
-                // 1) pip 补丁
-                if (pipPatchTar.exists()) {
-                    File pipStage = new File(pgDir, "pip-patched");
-                    deleteRecursive(pipStage);
-                    pipStage.mkdirs();
-                    int code = -1;
-                    try {
-                        ProcessBuilder tb = new ProcessBuilder(pyBin.getAbsolutePath(),
-                                "-W", "ignore::DeprecationWarning",
-                                "-m", "tarfile", "--filter", "data", "-e",
-                                pipPatchTar.getAbsolutePath(),
-                                pipStage.getAbsolutePath());
-                        pbEnv(tb);
-                        tb.redirectErrorStream(true);
-                        Process tp = tb.start();
-                        closeStdin(tp);
-                        StringBuilder tout = new StringBuilder();
-                        java.io.BufferedReader tbr = new java.io.BufferedReader(
-                                new java.io.InputStreamReader(tp.getInputStream()));
-                        String tln;
-                        while ((tln = tbr.readLine()) != null) {
-                            if (tout.length() < 1500) tout.append(tln).append('\n');
-                        }
-                        code = tp.waitFor();
-                        if (code != 0) {
-                            logLine("[pip-patch] tarfile 退出码 " + code
-                                    + " 输出: " + tout.toString().trim());
-                        }
-                    } catch (Throwable tex) {
-                        logLine("[ARTEX] pip 补丁解压异常: " + tex);
-                    }
-                    File stagedPip = new File(pipStage, "pip");
-                    if (code == 0 && stagedPip.isDirectory()) {
-                        File livePip = new File(sitePkgs, "pip");
-                        deleteRecursive(livePip);
-                        try {
-                            java.nio.file.Files.move(stagedPip.toPath(), livePip.toPath());
-                            logLine("[ARTEX] pip 补丁版已就位（SOCKS 代理 + android 平台 tag）");
-                        } catch (Throwable mv) {
-                            logLine("[ARTEX] pip 补丁版覆盖失败: " + mv);
-                        }
-                    } else {
-                        logLine("[ARTEX] pip 补丁包解压失败，保留原版 pip");
-                    }
-                }
-
-                // 2) 预打包 wheel → py-socks（wheel 本质是 zip，直接用 Java 解）
-                File pySocksDir = new File(toolsDir, "py-socks");
-                File wheels = new File(toolsDir, "py-wheels");
-                File[] ws = wheels.listFiles((d, n) -> n.endsWith(".whl"));
-                if (ws != null && ws.length > 0) {
-                    int nFiles = 0;
-                    pySocksDir.mkdirs();
-                    for (File w : ws) {
-                        try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(w)) {
-                            java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
-                            while (en.hasMoreElements()) {
-                                java.util.zip.ZipEntry e = en.nextElement();
-                                File out = new File(pySocksDir, e.getName());
-                                if (e.isDirectory()) { out.mkdirs(); continue; }
-                                File parent = out.getParentFile();
-                                if (parent != null) parent.mkdirs();
-                                try (InputStream in = zf.getInputStream(e);
-                                     FileOutputStream fo = new FileOutputStream(out)) {
-                                    byte[] buf = new byte[65536];
-                                    int r;
-                                    while ((r = in.read(buf)) > 0) fo.write(buf, 0, r);
-                                }
-                                nFiles++;
-                            }
-                        } catch (Throwable wt) {
-                            logLine("[ARTEX] wheel 解压失败 " + w.getName() + ": " + wt);
-                        }
-                    }
-                    logLine("[ARTEX] 预装 wheel 解压完成：" + ws.length
-                            + " 个包，" + nFiles + " 个文件 → data/tools/py-socks");
-                }
-
-                // 3) pip install 到 venv
-                ProcessBuilder pb = new ProcessBuilder(pyBin.getAbsolutePath(),
-                        "-m", "pip", "install",
-                        "--target", venv.getAbsolutePath(),
-                        "--no-compile", "--quiet",
-                        "impacket", "pypykatz", "laZagne");
-                pbEnv(pb);
-                pb.environment().put("PYTHONPATH", pySocksDir.getAbsolutePath());
-                pb.environment().put("SSL_CERT_FILE",
-                        new File(pgDir, "etc/tls/cert.pem").getAbsolutePath());
-                pb.redirectErrorStream(true);
-                Process p = pb.start();
-                closeStdin(p);
-                java.io.BufferedReader br = new java.io.BufferedReader(
-                        new java.io.InputStreamReader(p.getInputStream()));
-                String ln;
-                while ((ln = br.readLine()) != null) {
-                    if (ln.contains("Successfully") || ln.contains("error") || ln.contains("ERROR"))
-                        logLine("[pip] " + ln);
-                }
-                int code = p.waitFor();
-
-                // 4) 入口符号链接
-                if (code == 0) {
-                    for (String e : new String[]{"impacket-smbexec", "nxc", "pypykatz", "laZagne"}) {
-                        File src = new File(venv, "bin/" + e);
-                        File dst = new File(toolsDir, e);
-                        if (src.exists() && !dst.exists()) {
-                            try {
-                                java.nio.file.Files.createSymbolicLink(dst.toPath(), src.toPath());
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                    logLine("[ARTEX] Python 工具自装完成（入口在 data/tools/）");
-                } else {
-                    logLine("[ARTEX] Python 工具自装退出码 " + code);
-                    diagnosePython(pyBin, home);
-                }
-            } catch (Throwable e) {
-                logLine("[ARTEX] Python 工具自装异常: " + e);
-            }
-            */
-        }, "py-tools-install");
-        t.setDaemon(true);
-        t.start();
+    void installPythonTools(PythonToolsInstaller.Listener listener) throws Exception {
+        PythonToolsInstaller.install(ctx, appDir, pyHome, pgDir, pgBin, tmpDir,
+                miscLib, pgLib, buildPath(), listener);
     }
 
     /**
@@ -418,7 +271,7 @@ public class ArtExService {
                     + " bash=" + new File(pgBin, "bash").exists()
                     + " python3=" + new File(pgBin, "python3").exists());
             String[] list = toolsDir.list();
-            logLine("[tools] " + toolsDir.getAbsolutePath() + " 条目="
+            logLine("[tools] " + toolsDir.getAbsolutePath() + " entries="
                     + (list == null ? -1 : list.length));
             if (list != null) {
                 java.util.Arrays.sort(list);
@@ -445,8 +298,15 @@ public class ArtExService {
                     ProcessBuilder pb = new ProcessBuilder(bash.getAbsolutePath(),
                             "-c", "echo BASH_OK; echo PATH=$PATH; which suo5 || echo NO_SUO5");
                     pb.environment().put("PATH", buildPath());
-                    pb.environment().put("LD_LIBRARY_PATH",
-                            miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+                    if (usesNativeArm64Runtime()) {
+                        pb.environment().put("LD_LIBRARY_PATH",
+                                miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+                    } else {
+                        // Android's x86_64 ARM translation runner inherits this variable
+                        // before it launches the ARM64 process. Pointing it at ARM64 .so
+                        // files makes the x86_64 runner fail before ARTEX can start.
+                        pb.environment().remove("LD_LIBRARY_PATH");
+                    }
                     pb.environment().put("HOME", appDir.getAbsolutePath());
                     pb.redirectErrorStream(true);
                     Process p = pb.start();
@@ -472,13 +332,13 @@ public class ArtExService {
                         if (!bl.trim().isEmpty()) logLine("[bash] " + bl.trim());
                     }
                 } catch (Throwable te) {
-                    logLine("[bash] 试跑异常: " + te);
+                    logLine("[bash] execution check failed: " + te);
                 }
             } else {
-                logLine("[bash] 缺失: " + bash.getAbsolutePath());
+                logLine("[bash] missing: " + bash.getAbsolutePath());
             }
         } catch (Throwable t) {
-            logLine("[tools] 自检失败: " + t);
+            logLine("[tools] self-check failed: " + t);
         }
     }
 
@@ -493,9 +353,18 @@ public class ArtExService {
         if (sys == null || sys.isEmpty()) sys = "/system/bin:/system/xbin";
         File tools = new File(dataDir, "data/tools");
         File ext = new File(tools, "ext");
+        File pythonBin = new File(tools, "python-site/bin");
         ext.mkdirs();
         return pgBin.getAbsolutePath() + ":" + tools.getAbsolutePath()
-                + ":" + ext.getAbsolutePath() + ":" + sys;
+                + ":" + ext.getAbsolutePath() + ":" + pythonBin.getAbsolutePath() + ":" + sys;
+    }
+
+    private static boolean usesArm64Runtime() {
+        return SecurityPolicy.supportsArm64Runtime(Build.SUPPORTED_ABIS);
+    }
+
+    private static boolean usesNativeArm64Runtime() {
+        return SecurityPolicy.usesNativeArm64Runtime(Build.SUPPORTED_ABIS);
     }
 
     /** 外挂工具目录：用户在面板里导入的二进制放这里，buildPath 已把它加进 PATH */
@@ -549,7 +418,7 @@ public class ArtExService {
                 }
             }
         } catch (Throwable t) {
-            Log.w(TAG, "读取 DNS 服务器失败: " + t);
+            Log.w(TAG, "Failed to read DNS servers: " + t);
         }
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>(v4);
         for (String f : FALLBACK_DNS) out.add(f);
@@ -564,8 +433,12 @@ public class ArtExService {
         pb.environment().put("HOME", pyHome.getAbsolutePath());
         pb.environment().put("PATH", buildPath());
         pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
-        pb.environment().put("LD_LIBRARY_PATH",
-                miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+        if (usesNativeArm64Runtime()) {
+            pb.environment().put("LD_LIBRARY_PATH",
+                    miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+        } else {
+            pb.environment().remove("LD_LIBRARY_PATH");
+        }
     }
 
     /** pip 失败后的 python 环境自检：prefix/encodings/sys.path 逐项落日志 */
@@ -585,7 +458,7 @@ public class ArtExService {
             String ln;
             while ((ln = br.readLine()) != null) logLine("[py-diag] " + ln);
         } catch (Throwable t) {
-            logLine("[py-diag] 自检失败: " + t);
+            logLine("[py-diag] self-check failed: " + t);
         }
     }
 
@@ -620,7 +493,7 @@ public class ArtExService {
                     }
                     out.setExecutable(true, false);
                     out.setReadable(true, false);
-                    status(l, "释放工具 " + binName + "…");
+                    status(l, "Extracting tool " + binName + "…");
                 } else if (n.equals("py-wheels")) {
                     File dst = new File(toolsDir, "py-wheels");
                     dst.mkdirs();
@@ -642,10 +515,10 @@ public class ArtExService {
                 }
             }
             String[] listed = toolsDir.list();
-            logLine("[ARTEX] 外部工具已就绪: data/tools ("
-                    + (listed == null ? 0 : listed.length) + " 项)");
+            logLine("[ARTEX] External tools are ready: data/tools ("
+                    + (listed == null ? 0 : listed.length) + " items)");
         } catch (Throwable t) {
-            logLine("[ARTEX] 工具释放失败（不影响主功能）: " + t);
+            logLine("[ARTEX] Tool extraction failed (the main app is unaffected): " + t);
         }
     }
 
@@ -655,7 +528,7 @@ public class ArtExService {
             try {
                 task.run();
             } catch (Throwable e) {
-                logLine("[ARTEX] " + name + " 异常: " + e);
+                logLine("[ARTEX] " + name + " error: " + e);
             }
         }, name);
         t.setDaemon(true);
@@ -683,8 +556,8 @@ public class ArtExService {
         }
         if (missing.isEmpty()) return;
 
-        status(l, "补齐核心工具…");
-        logLine("[tools] 缺少 " + missing.size() + " 个核心工具，准备从 GitHub 拉取");
+        status(l, "Installing missing core tools…");
+        logLine("[tools] Missing " + missing.size() + " core tools; attempting to download them from GitHub");
         new ToolCatalog(ctx).fetch(new ToolCatalog.FetchCallback() {
             @Override public void onCatalog(java.util.List<ToolCatalog.Entry> entries) {
                 java.util.Map<String, ToolCatalog.Entry> byName = new java.util.HashMap<>();
@@ -693,7 +566,7 @@ public class ArtExService {
             }
 
             @Override public void onError(String msg) {
-                logLine("[tools] 清单获取失败，核心工具暂缺：" + msg);
+                logLine("[tools] Could not load the catalog; core tools are unavailable: " + msg);
             }
         });
     }
@@ -706,13 +579,23 @@ public class ArtExService {
                                       java.util.Map<String, ToolCatalog.Entry> byName,
                                       File toolsDir, StatusListener l, int idx) {
         if (idx >= names.size()) {
-            logLine("[tools] 核心工具补齐完成");
+            java.util.List<String> unavailable = new java.util.ArrayList<>();
+            for (String core : new String[]{"fscan", "gogo", "naabu", "chisel", "suo5"}) {
+                File installed = new File(toolsDir, core);
+                if (!installed.isFile() || installed.length() == 0) unavailable.add(core);
+            }
+            if (unavailable.isEmpty()) {
+                logLine("[tools] Core tools are ready");
+            } else {
+                logLine("[tools] Core tool installation incomplete; still missing: "
+                        + String.join(", ", unavailable));
+            }
             return;
         }
         String name = names.get(idx);
         ToolCatalog.Entry e = byName.get(name);
         if (e == null) {
-            logLine("[tools] 清单里没有 " + name + "，跳过");
+            logLine("[tools] Catalog does not contain " + name + "; skipping");
             downloadSequentially(names, byName, toolsDir, l, idx + 1);
             return;
         }
@@ -724,7 +607,7 @@ public class ArtExService {
                     ToolImporter.Verify v = ToolImporter.verify(file);
                     if (!v.ok) {
                         file.delete();
-                        logLine("[tools] " + name + " 校验失败：" + v.reason);
+                        logLine("[tools] " + name + " verification failed: " + v.reason);
                         return;
                     }
                     File dst = new File(toolsDir, name);
@@ -734,16 +617,16 @@ public class ArtExService {
                         file.delete();
                     }
                     dst.setExecutable(true, false);
-                    logLine("[tools] 已补齐 " + name + " (" + dst.length() / 1048576 + "MB)");
+                    logLine("[tools] Added " + name + " (" + dst.length() / 1048576 + "MB)");
                 } catch (Throwable t) {
-                    logLine("[tools] " + name + " 安装失败: " + t);
+                    logLine("[tools] " + name + " installation failed: " + t);
                 } finally {
                     downloadSequentially(names, byName, toolsDir, l, idx + 1);
                 }
             }
 
             @Override public void onError(String msg) {
-                logLine("[tools] " + name + " 下载失败：" + msg);
+                logLine("[tools] " + name + " download failed: " + msg);
                 downloadSequentially(names, byName, toolsDir, l, idx + 1);
             }
         });
@@ -823,7 +706,7 @@ public class ArtExService {
         if (new File(pgData, "PG_VERSION").exists()) return;
         // 上次 initdb 失败可能留下半成品目录，会让新的 initdb 卡死/失败 → 清空重来
         if (pgData.exists() && pgData.list() != null && pgData.list().length > 0) {
-            status(l, "清理上次残留的数据库目录…");
+            status(l, "Removing a leftover database directory from the previous run…");
             deleteRecursive(pgData);
         }
         pgData.mkdirs();
@@ -846,7 +729,7 @@ public class ArtExService {
         File pidFile = new File(pgData, "postmaster.pid");
         if (pidFile.exists() && !pgReady()) {
             pidFile.delete();
-            Log.w(TAG, "清理残留 postmaster.pid");
+            Log.w(TAG, "Removing stale postmaster.pid");
         }
         List<String> cmd = new ArrayList<>();
         cmd.add(new File(pgDir, "postgres").getAbsolutePath());
@@ -870,11 +753,11 @@ public class ArtExService {
         for (int i = 0; i < 90 && !stopping.get(); i++) {
             if (pgReady()) { ready = true; break; }
             if (!postgres.isAlive()) {
-                throw new Exception("PostgreSQL 进程已退出：\n" + tail(pgLog.toString(), 900));
+                throw new Exception("PostgreSQL process exited:\n" + tail(pgLog.toString(), 900));
             }
             Thread.sleep(1000);
         }
-        if (!ready) throw new Exception("PostgreSQL 启动超时：\n" + tail(pgLog.toString(), 900));
+        if (!ready) throw new Exception("PostgreSQL startup timed out:\n" + tail(pgLog.toString(), 900));
 
         if (!dbExists("artex")) {
             runPg(new String[]{"psql", "-h", "127.0.0.1", "-U", "artex",
@@ -948,16 +831,22 @@ public class ArtExService {
                     // PYTHONHOME 让 impacket/pypykatz 这类脚本能被 python3 跑起来
                     pb.environment().put("PATH", buildPath());
                     pb.environment().put("PYTHONHOME", pyHome.getAbsolutePath());
+                    File pythonSite = new File(dataDir, "data/tools/python-site");
                     File pySocks = new File(dataDir, "data/tools/py-socks");
-                    if (pySocks.isDirectory()) {
-                        // 只暴露 py-socks：venv 里的包不进 import 路径，
-                        // 否则会覆盖 pip 自带的 vendored 依赖
-                        pb.environment().put("PYTHONPATH", pySocks.getAbsolutePath());
-                    }
+                    String pythonPath = (pythonSite.isDirectory() ? pythonSite.getAbsolutePath() : "")
+                            + (pySocks.isDirectory() ? (pythonSite.isDirectory() ? ":" : "")
+                                    + pySocks.getAbsolutePath() : "");
+                    if (!pythonPath.isEmpty()) pb.environment().put("PYTHONPATH", pythonPath);
                     pb.environment().put("SSL_CERT_FILE",
                             new File(pgDir, "etc/tls/cert.pem").getAbsolutePath());
-                    pb.environment().put("LD_LIBRARY_PATH",
-                            miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+                    if (usesNativeArm64Runtime()) {
+                        pb.environment().put("LD_LIBRARY_PATH",
+                                miscLib.getAbsolutePath() + ":" + pgLib.getAbsolutePath());
+                    } else {
+                        // The ARM64 backend is static. Avoid exposing ARM64 libraries
+                        // to the emulator's x86_64 translation runner before it starts.
+                        pb.environment().remove("LD_LIBRARY_PATH");
+                    }
                     pb.environment().put("ARTEX_DNS", resolveDnsServers());
                     // 没有 TOR：出站直连，绝不注入 HTTP_PROXY（指向不存在的 9050
                     // 会让后端所有出站请求失败）
@@ -969,24 +858,24 @@ public class ArtExService {
                     pump(p.getInputStream(), beLog);
                     // 首次不提"第几次"——正常启动就是第 1 次，说"尝试"
                     // 会让用户以为已经失败过一轮。只有真重试才报次数。
-                    status(l, attempt == 1 ? "正在启动服务…"
-                            : "重新启动服务（第 " + attempt + " 次）…");
+                    status(l, attempt == 1 ? "Starting service…"
+                            : "Restarting service (attempt " + attempt + ")…");
                     // 等它真正监听端口，或提前退出。
                     // 前 10 秒每秒探一次（正常几秒就起来），之后放到 2 秒一次，
                     // 减少无谓的 socket 探测。
                     for (int i = 0; i < 60 && !stopping.get(); i++) {
                         if (!p.isAlive()) break;
-                        if (portReady()) { status(l, "加载界面…"); return; }
+                        if (portReady()) { status(l, "Loading interface…"); return; }
                         Thread.sleep(i < 10 ? 1000 : 2000);
                     }
-                    if (p.isAlive()) { status(l, "服务仍在启动，继续等待…"); return; }
+                    if (p.isAlive()) { status(l, "Service is still starting; continuing to wait…"); return; }
                     int code = p.exitValue();
-                    status(l, "服务启动失败（exit=" + code + "），重试中 " + attempt + "/30");
+                    status(l, "Service startup failed (exit=" + code + "); retrying " + attempt + "/30");
                     Log.w(TAG, "backend exited " + code + ", retry " + attempt);
                     if (attempt >= 30) {
                         if (l != null) {
                             mainHandler.post(() ->
-                                    l.onError("后端多次启动失败：\n" + tail(beLog.toString(), 1200)));
+                                    l.onError("Backend failed to start after multiple attempts:\n" + tail(beLog.toString(), 1200)));
                         }
                         return;
                     }
@@ -1023,7 +912,7 @@ public class ArtExService {
         if (!stopping.get()) {
             if (l != null) {
                 mainHandler.post(() ->
-                        l.onError("等待服务超时（300秒）：\n" + tail(beLog.toString(), 1200)));
+                        l.onError("Service startup timed out (300 seconds):\n" + tail(beLog.toString(), 1200)));
             }
         }
     }
@@ -1048,18 +937,18 @@ public class ArtExService {
             if (!p.isAlive()) { exit = p.exitValue(); done = true; break; }
             if (i % 3 == 0) {
                 String t = tail(sb.toString(), 160).replace('\n', ' ');
-                status(l, name + " 运行中 " + (i + 1) + "s … " + t);
+                status(l, name + " running " + (i + 1) + "s … " + t);
             }
             Thread.sleep(1000);
         }
         if (!done) {
             p.destroy();
-            throw new Exception(name + " 超时(5分钟)，可能卡住\n输出：\n" + tail(sb.toString(), 1500));
+            throw new Exception(name + " timed out after 5 minutes; it may be stuck\nOutput:\n" + tail(sb.toString(), 1500));
         }
         String out = sb.toString();
         Log.i(TAG, name + " exit=" + exit + "\n" + out);
         if (exit != 0 && !out.contains("already exists")) {
-            throw new Exception(name + " 失败(exit=" + exit + ")：\n" + out);
+            throw new Exception(name + " failed (exit=" + exit + ")：\n" + out);
         }
     }
 

@@ -1,2 +1,2 @@
-#!/data/user/0/com.artex.mobile/p/bin/sh
+#!/data/user/0/io.nightfall.artex/bin/sh
 svn export --force http://svn.red-bean.com/bob/macholib/trunk/macholib/ .

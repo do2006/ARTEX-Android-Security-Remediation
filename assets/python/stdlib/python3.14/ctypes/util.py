@@ -312,7 +312,7 @@ elif os.name == "posix":
             expr = os.fsencode(expr)
 
             try:
-                proc = subprocess.Popen(('/data/user/0/com.artex.mobile/p/bin/ldconfig', '-r'),
+                proc = subprocess.Popen(('/data/user/0/io.nightfall.artex/bin/ldconfig', '-r'),
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.DEVNULL)
             except OSError:  # E.g. command not found
