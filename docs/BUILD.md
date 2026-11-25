@@ -40,7 +40,7 @@ sh scripts/build_apk.sh dist/NightFall-Artex.apk
 
 On Windows, use Git Bash, set `ANDROID_SDK` to the SDK path in Git Bash form (for example `/e/Android/Sdk`), and set `PYTHON` to the Git Bash-compatible path of `python.exe` if it is not found automatically. The script compiles the Java wrapper, packages resources and assets, signs the APK, and verifies the signature. Review `scripts/build_apk.sh` before running it in your environment.
 
-The test APK previously produced in this workspace used a temporary local certificate. It is not an official release artifact. No release APK has been built from the current source revision as of this documentation update.
+The test APK produced in this workspace used a temporary local certificate. It is not an official release artifact. No release APK has been built from the current source revision as of this documentation update. A Firebase Test Lab Robo run of this test APK on an ARM virtual device (Android 14/API 34) passed, but its crawl timed out after 4m 59s; this does not verify Python tool installation or tool commands.
 
 ## Test safely before release
 
@@ -48,7 +48,7 @@ Do not install over an existing app unless the signing key matches and you have 
 
 Before publishing a release, verify at least:
 
-1. Install and launch on a native ARM64 Android device or a genuine ARM virtual device such as [Firebase Test Lab Arm virtual devices](https://firebase.google.com/docs/test-lab/android/avds); confirm runtime extraction, PostgreSQL initialization, backend startup, and WebView loading. An x86_64 emulator with ARM translation is not an equivalent test.
+1. Confirm runtime extraction, PostgreSQL initialization, backend startup, and WebView loading. A Firebase Robo test passed on a Medium Phone ARM virtual device with Android 14/API 34, but timed out during its crawl and does not establish these service checks. An x86_64 emulator with ARM translation is not an equivalent test.
 2. Exercise the backup and restore round trip, including malformed archives and failed rollback behavior.
 3. Download a catalog tool and verify redirect restrictions and SHA-256 handling.
 4. Install the four Python tools from the bundled wheelhouse, run each command's harmless version/help path, and exercise representative features on the device.
@@ -63,7 +63,7 @@ Do not describe a source compile, unit test, or APK signature check as device va
 - JDK 11 or newer.
 - Python 3 for APK assembly.
 - The packaged PostgreSQL and other native assets still need a complete reproducible dependency and provenance record.
-- The Android ARM64 Python wheelhouse contains 96 hash-pinned wheels. Cross-environment installation passed, but native ARM64 device feature validation remains outstanding.
+- The Android ARM64 Python wheelhouse contains 96 hash-pinned wheels. Cross-environment installation passed. A Robo test passed on an ARM virtual device, but native ARM64 Python tool installation and feature validation remain outstanding.
 - x86_64 ARM translation is not a release-supported substitute for an ARM64 test: known `nxc`, `pypykatz`, lxml, and Pillow native load failures remain. Firebase Test Lab documents no-cost virtual test quotas; check the [current quotas and pricing](https://firebase.google.com/docs/test-lab/usage-quotas-pricing) before running cloud tests.
 
 ## Useful source locations
